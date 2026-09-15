@@ -2,12 +2,21 @@
 // runs a keyword-based role-ping chat monitor, and manages reaction-role assignment
 // (including reconciling roles against reactions added/removed while offline).
 
-import { Client, GatewayIntentBits, Partials, EmbedBuilder, MessageFlags, SlashCommandBuilder, REST, Routes } from 'discord.js';
-import { AtpAgent } from '@atproto/api';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import 'dotenv/config'; // Loads variables from .env into process.env
+import {
+    Client,
+    GatewayIntentBits,
+    Partials,
+    EmbedBuilder,
+    MessageFlags,
+    SlashCommandBuilder,
+    REST,
+    Routes,
+} from "discord.js";
+import { AtpAgent } from "@atproto/api";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import "dotenv/config"; // Loads variables from .env into process.env
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -30,33 +39,33 @@ const POLL_INTERVAL_MS = 60000;
 
 // Flavor text shown before the role pings on a cross-posted BlueSky message; one is picked at random
 const ROLE_PING_MESSAGES = [
-    'TO ME, MY NIGGAS!',
-    'Which one of you home of sexuals asked for this?',
-    'Peep this shit cuz.',
-    'You got like twenty seconds bro gl',
-    'meow meow meow meow meow meow meow bitch meow',
-    'Quieres?'
+    "TO ME, MY NIGGAS!",
+    "Which one of you home of sexuals asked for this?",
+    "Peep this shit cuz.",
+    "You got like twenty seconds bro gl",
+    "meow meow meow meow meow meow meow bitch meow",
+    "Quieres?",
 ];
 
 // Only this user may run /say
-const SAY_COMMAND_USER_ID = '116938174823006209';
+const SAY_COMMAND_USER_ID = "116938174823006209";
 
 // Chat keyword monitor settings
-const ALLOWED_CHANNELS = ['121721532551528448', '1548135439829835906'];
+const ALLOWED_CHANNELS = ["121721532551528448", "1548135439829835906"];
 
 // Role settings: all reaction roles (emoji, role ID, embed label, keywords) live in
 // custom-reaction-roles.json instead of here, to keep this file compact. Edit that file
 // directly, or use /add-reaction-role, to add/remove entries. KEYWORD_ROLES, EMOJI_ROLE_MAP,
 // the setup-roles embed, and its reactions are all generated from the loaded list.
-const REACTION_ROLES_PATH = path.join(__dirname, 'custom-reaction-roles.json');
+const REACTION_ROLES_PATH = path.join(__dirname, "custom-reaction-roles.json");
 
 function loadReactionRoles() {
     try {
         if (fs.existsSync(REACTION_ROLES_PATH)) {
-            return JSON.parse(fs.readFileSync(REACTION_ROLES_PATH, 'utf8'));
+            return JSON.parse(fs.readFileSync(REACTION_ROLES_PATH, "utf8"));
         }
     } catch (error) {
-        console.error('Could not read custom-reaction-roles.json:', error);
+        console.error("Could not read custom-reaction-roles.json:", error);
     }
     return [];
 }
@@ -70,15 +79,21 @@ let ROLE_KEYWORDS = {};
 
 function rebuildRoleLookups() {
     // emoji ID -> role ID, used by the reaction add/remove handlers and the offline sync
-    EMOJI_ROLE_MAP = Object.fromEntries(REACTION_ROLES.map(({ emojiId, roleId }) => [emojiId, roleId]));
+    EMOJI_ROLE_MAP = Object.fromEntries(
+        REACTION_ROLES.map(({ emojiId, roleId }) => [emojiId, roleId]),
+    );
 
     // keyword -> role ID, used by the chat keyword monitor and BlueSky cross-post pings
     KEYWORD_ROLES = Object.fromEntries(
-        REACTION_ROLES.flatMap(({ keywords, roleId }) => keywords.map(keyword => [keyword, roleId]))
+        REACTION_ROLES.flatMap(({ keywords, roleId }) =>
+            keywords.map((keyword) => [keyword, roleId]),
+        ),
     );
 
     // role ID -> keywords, used purely for logging so logs show what role changed
-    ROLE_KEYWORDS = Object.fromEntries(REACTION_ROLES.map(({ keywords, roleId }) => [roleId, keywords.join('/')]));
+    ROLE_KEYWORDS = Object.fromEntries(
+        REACTION_ROLES.map(({ keywords, roleId }) => [roleId, keywords.join("/")]),
+    );
 }
 rebuildRoleLookups();
 
@@ -91,7 +106,7 @@ const MATH_QUIZ_INTERVAL_MS = 60 * 60 * 1000;
 const COMMAND_GUILD_ID = process.env.COMMAND_GUILD_ID;
 
 // Persists the ID of the posted reaction-role menu message across restarts
-const CONFIG_PATH = path.join(__dirname, 'config.json');
+const CONFIG_PATH = path.join(__dirname, "config.json");
 // =======================================================
 
 const discordClient = new Client({
@@ -100,13 +115,13 @@ const discordClient = new Client({
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.GuildMessageReactions,
-        GatewayIntentBits.GuildMembers
+        GatewayIntentBits.GuildMembers,
     ],
-    partials: [Partials.Message, Partials.Channel, Partials.Reaction]
+    partials: [Partials.Message, Partials.Channel, Partials.Reaction],
 });
 
 const atpAgent = new AtpAgent({
-    service: 'https://bsky.social'
+    service: "https://bsky.social",
 });
 
 // URI of the most recently posted item, used to detect new posts and avoid duplicates
@@ -118,64 +133,93 @@ const activeMathChallenges = new Map();
 // Scoped to COMMAND_GUILD_ID (guild commands update instantly, unlike global ones)
 const guildSlashCommands = [
     new SlashCommandBuilder()
-        .setName('setup-roles')
-        .setDescription('Posts the custom reaction role embed in the current channel.'),
+        .setName("setup-roles")
+        .setDescription(
+            "Posts the custom reaction role embed in the current channel.",
+        ),
     new SlashCommandBuilder()
-        .setName('toonie-math-time')
-        .setDescription('Posts a random algebra equation for Toonie to solve.'),
+        .setName("toonie-math-time")
+        .setDescription("Posts a random algebra equation for Toonie to solve."),
     new SlashCommandBuilder()
-        .setName('math-time-open')
-        .setDescription('Posts a random algebra equation open for anyone to solve.'),
+        .setName("math-time-open")
+        .setDescription(
+            "Posts a random algebra equation open for anyone to solve.",
+        ),
     new SlashCommandBuilder()
-        .setName('say')
-        .setDescription('Makes the bot post a message (Synnie only, screw you guys).')
-        .addStringOption(option =>
-            option.setName('message')
-                .setDescription('The message for the bot to post')
-                .setRequired(true))
-        .addChannelOption(option =>
-            option.setName('channel')
-                .setDescription('Channel to post in (defaults to the current channel)')
-                .setRequired(false)),
+        .setName("say")
+        .setDescription(
+            "Makes the bot post a message (Synnie only, screw you guys).",
+        )
+        .addStringOption((option) =>
+            option
+                .setName("message")
+                .setDescription("The message for the bot to post")
+                .setRequired(true),
+        )
+        .addChannelOption((option) =>
+            option
+                .setName("channel")
+                .setDescription("Channel to post in (defaults to the current channel)")
+                .setRequired(false),
+        ),
     new SlashCommandBuilder()
-        .setName('add-reaction-role')
-        .setDescription('Adds a new reaction role to the menu (Administrator only).')
-        .addStringOption(option =>
-            option.setName('emoji')
-                .setDescription('The custom server emoji: paste its raw mention (\\:name:) or just its numeric ID')
-                .setRequired(true))
-        .addStringOption(option =>
-            option.setName('label')
-                .setDescription('Display name shown in the role menu embed')
-                .setRequired(true))
-        .addStringOption(option =>
-            option.setName('keywords')
-                .setDescription('Comma-separated keywords that also ping this role in chat/BlueSky posts')
-                .setRequired(true))
-        .addRoleOption(option =>
-            option.setName('role')
-                .setDescription('The role to grant (leave blank to create a new role automatically)')
-                .setRequired(false))
-].map(command => command.toJSON());
+        .setName("add-reaction-role")
+        .setDescription(
+            "Adds a new reaction role to the menu (Administrator only).",
+        )
+        .addStringOption((option) =>
+            option
+                .setName("emoji")
+                .setDescription(
+                    "The custom server emoji: paste its raw mention (\\:name:) or just its numeric ID",
+                )
+                .setRequired(true),
+        )
+        .addStringOption((option) =>
+            option
+                .setName("label")
+                .setDescription("Display name shown in the role menu embed")
+                .setRequired(true),
+        )
+        .addStringOption((option) =>
+            option
+                .setName("keywords")
+                .setDescription(
+                    "Comma-separated keywords that also ping this role in chat/BlueSky posts",
+                )
+                .setRequired(true),
+        )
+        .addRoleOption((option) =>
+            option
+                .setName("role")
+                .setDescription(
+                    "The role to grant (leave blank to create a new role automatically)",
+                )
+                .setRequired(false),
+        ),
+].map((command) => command.toJSON());
 
-const rest = new REST({ version: '10' }).setToken(DISCORD_BOT_TOKEN);
+const rest = new REST({ version: "10" }).setToken(DISCORD_BOT_TOKEN);
 
-discordClient.once('clientReady', async () => {
+discordClient.once("clientReady", async () => {
     console.log(`Logged in as ${discordClient.user.tag}`);
 
     try {
         // Clears any stale global commands from before commands were switched to guild-scoped
         await rest.put(Routes.applicationCommands(DISCORD_CLIENT_ID), { body: [] });
-        await rest.put(Routes.applicationGuildCommands(DISCORD_CLIENT_ID, COMMAND_GUILD_ID), { body: guildSlashCommands });
-        console.log('Slash commands registered.');
+        await rest.put(
+            Routes.applicationGuildCommands(DISCORD_CLIENT_ID, COMMAND_GUILD_ID),
+            { body: guildSlashCommands },
+        );
+        console.log("Slash commands registered.");
     } catch (error) {
-        console.error('Error registering slash commands:', error);
+        console.error("Error registering slash commands:", error);
     }
 
     try {
         await atpAgent.login({
             identifier: BLUESKY_HANDLE,
-            password: BLUESKY_APP_PASSWORD
+            password: BLUESKY_APP_PASSWORD,
         });
         console.log("Successfully logged into BlueSky!");
         setInterval(checkBlueSkyPosts, POLL_INTERVAL_MS);
@@ -194,7 +238,9 @@ discordClient.once('clientReady', async () => {
  * quadratic and a "solve for x and y" system of equations.
  */
 function generateAlgebraEquation() {
-    return Math.random() < 0.5 ? generateFoilEquation() : generateSystemEquation();
+    return Math.random() < 0.5
+        ? generateFoilEquation()
+        : generateSystemEquation();
 }
 
 /**
@@ -208,13 +254,17 @@ function generateFoilEquation() {
     const b = p + q; // Outer + Inner terms
     const c = p * q; // First * Last term
 
-    const bTerm = b === 0 ? '' : b > 0 ? ` + ${b}x` : ` - ${Math.abs(b)}x`;
-    const cTerm = c === 0 ? '' : c > 0 ? ` + ${c}` : ` - ${Math.abs(c)}`;
+    const bTerm = b === 0 ? "" : b > 0 ? ` + ${b}x` : ` - ${Math.abs(b)}x`;
+    const cTerm = c === 0 ? "" : c > 0 ? ` + ${c}` : ` - ${Math.abs(c)}`;
 
     const roots = [...new Set([-p, -q])].sort((first, second) => first - second);
-    const answer = roots.map(root => `x = ${root}`).join(' or ');
+    const answer = roots.map((root) => `x = ${root}`).join(" or ");
 
-    return { equation: `x^2${bTerm}${cTerm} = 0`, answer, prompt: 'Solve for x:' };
+    return {
+        equation: `x^2${bTerm}${cTerm} = 0`,
+        answer,
+        prompt: "Solve for x:",
+    };
 }
 
 /**
@@ -235,11 +285,15 @@ function generateSystemEquation() {
     const c1 = a1 * x + b1 * y;
     const c2 = a2 * x + b2 * y;
 
-    const line1 = `${a1}x ${b1 >= 0 ? '+' : '-'} ${Math.abs(b1)}y = ${c1}`;
-    const line2 = `${a2}x ${b2 >= 0 ? '+' : '-'} ${Math.abs(b2)}y = ${c2}`;
+    const line1 = `${a1}x ${b1 >= 0 ? "+" : "-"} ${Math.abs(b1)}y = ${c1}`;
+    const line2 = `${a2}x ${b2 >= 0 ? "+" : "-"} ${Math.abs(b2)}y = ${c2}`;
 
-    return { equation: `${line1}
-${line2}`, answer: `x = ${x}, y = ${y}`, prompt: 'Solve for x and y:' };
+    return {
+        equation: `${line1}
+${line2}`,
+        answer: `x = ${x}, y = ${y}`,
+        prompt: "Solve for x and y:",
+    };
 }
 
 function randomInt(min, max) {
@@ -267,8 +321,10 @@ async function postMathChallenge(channel, targetUserId = MATH_QUIZ_USER_ID) {
         }
 
         const { equation, answer, prompt } = generateAlgebraEquation();
-        const mention = targetUserId ? `<@${targetUserId}> ` : '';
-        const message = await channel.send(`${mention}${prompt}\n\`\`\`\n${equation}\n\`\`\``);
+        const mention = targetUserId ? `<@${targetUserId}> ` : "";
+        const message = await channel.send(
+            `${mention}${prompt}\n\`\`\`\n${equation}\n\`\`\``,
+        );
         activeMathChallenges.set(message.id, { answer, userId: targetUserId });
         console.log(`Math challenge posted (${answer})`);
     } catch (error) {
@@ -281,12 +337,14 @@ async function postMathChallenge(channel, targetUserId = MATH_QUIZ_USER_ID) {
  * regardless of where a slash command might otherwise be run from.
  */
 async function postScheduledMathChallenge() {
-    const channel = await discordClient.channels.fetch(MATH_QUIZ_CHANNEL_ID).catch(() => null);
+    const channel = await discordClient.channels
+        .fetch(MATH_QUIZ_CHANNEL_ID)
+        .catch(() => null);
     await postMathChallenge(channel);
 }
 
 // Reveals the answer only when the tagged user replies directly to their posted challenge
-discordClient.on('messageCreate', async (message) => {
+discordClient.on("messageCreate", async (message) => {
     const challengeMessageId = message.reference?.messageId;
     if (!challengeMessageId) return;
 
@@ -314,7 +372,7 @@ async function checkBlueSkyPosts() {
         const response = await atpAgent.getAuthorFeed({
             actor: TARGET_BLUESKY_USER,
             limit: 5,
-            filter: 'posts_no_replies'
+            filter: "posts_no_replies",
         });
 
         const feed = response.data.feed;
@@ -354,7 +412,7 @@ async function checkBlueSkyPosts() {
 async function postToDiscord(channel, post) {
     const author = post.author;
     const record = post.record;
-    const postSlug = post.uri.split('/').pop();
+    const postSlug = post.uri.split("/").pop();
     const rawText = record.text || "";
     const profileUrl = `https://bsky.app/profile/${author.handle}`;
 
@@ -373,11 +431,11 @@ async function postToDiscord(channel, post) {
         .setAuthor({
             name: `${author.displayName || author.handle} (@${author.handle})`,
             iconURL: author.avatar,
-            url: profileUrl
+            url: profileUrl,
         })
         .setFooter({
             text: "Posted on BlueSky",
-            iconURL: "https://web-cdn.bsky.app/static/favicon.png"
+            iconURL: "https://web-cdn.bsky.app/static/favicon.png",
         });
 
     const imageUrl = extractEmbedImageUrl(post.embed);
@@ -387,8 +445,9 @@ async function postToDiscord(channel, post) {
 
     const messagePayload = { embeds: [embed] };
     if (rolesToPing.length > 0) {
-        const pingMessage = ROLE_PING_MESSAGES[randomInt(0, ROLE_PING_MESSAGES.length - 1)];
-        messagePayload.content = `${pingMessage} ${rolesToPing.join(' ')}`;
+        const pingMessage =
+            ROLE_PING_MESSAGES[randomInt(0, ROLE_PING_MESSAGES.length - 1)];
+        messagePayload.content = `${pingMessage} ${rolesToPing.join(" ")}`;
     }
 
     await channel.send(messagePayload);
@@ -403,11 +462,11 @@ function extractEmbedImageUrl(embed) {
     if (!embed) return null;
 
     switch (embed.$type) {
-        case 'app.bsky.embed.images#view':
+        case "app.bsky.embed.images#view":
             return embed.images?.[0]?.fullsize ?? null;
-        case 'app.bsky.embed.external#view':
+        case "app.bsky.embed.external#view":
             return embed.external?.thumb ?? null;
-        case 'app.bsky.embed.recordWithMedia#view':
+        case "app.bsky.embed.recordWithMedia#view":
             return extractEmbedImageUrl(embed.media);
         default:
             return null;
@@ -424,25 +483,29 @@ function extractEmbedImageUrl(embed) {
 function applyRichTextFacets(text, facets) {
     if (!facets || facets.length === 0) return suppressBareLinks(text);
 
-    const textBytes = Buffer.from(text, 'utf8');
-    const sortedFacets = [...facets].sort((a, b) => a.index.byteStart - b.index.byteStart);
+    const textBytes = Buffer.from(text, "utf8");
+    const sortedFacets = [...facets].sort(
+        (a, b) => a.index.byteStart - b.index.byteStart,
+    );
 
-    let result = '';
+    let result = "";
     let cursor = 0;
 
     for (const facet of sortedFacets) {
         const { byteStart, byteEnd } = facet.index;
         if (byteStart < cursor || byteEnd > textBytes.length) continue; // Skip out-of-order/invalid facets
 
-        result += suppressBareLinks(textBytes.subarray(cursor, byteStart).toString('utf8'));
-        const segment = textBytes.subarray(byteStart, byteEnd).toString('utf8');
+        result += suppressBareLinks(
+            textBytes.subarray(cursor, byteStart).toString("utf8"),
+        );
+        const segment = textBytes.subarray(byteStart, byteEnd).toString("utf8");
         const feature = facet.features?.[0];
 
-        if (feature?.$type === 'app.bsky.richtext.facet#link') {
+        if (feature?.$type === "app.bsky.richtext.facet#link") {
             result += `[${segment}](${feature.uri})`;
-        } else if (feature?.$type === 'app.bsky.richtext.facet#mention') {
+        } else if (feature?.$type === "app.bsky.richtext.facet#mention") {
             result += `[${segment}](https://bsky.app/profile/${feature.did})`;
-        } else if (feature?.$type === 'app.bsky.richtext.facet#tag') {
+        } else if (feature?.$type === "app.bsky.richtext.facet#tag") {
             result += `[${segment}](https://bsky.app/hashtag/${feature.tag})`;
         } else {
             result += segment;
@@ -451,7 +514,7 @@ function applyRichTextFacets(text, facets) {
         cursor = byteEnd;
     }
 
-    result += suppressBareLinks(textBytes.subarray(cursor).toString('utf8'));
+    result += suppressBareLinks(textBytes.subarray(cursor).toString("utf8"));
     return result;
 }
 
@@ -460,7 +523,7 @@ function applyRichTextFacets(text, facets) {
  * plain clickable text instead of triggering a second, unfurled embed under the message.
  */
 function suppressBareLinks(text) {
-    return text.replace(/https?:\/\/[^\s<>]+/g, '<$&>');
+    return text.replace(/https?:\/\/[^\s<>]+/g, "<$&>");
 }
 
 /**
@@ -469,11 +532,11 @@ function suppressBareLinks(text) {
 function getActiveMessageId() {
     try {
         if (fs.existsSync(CONFIG_PATH)) {
-            const parsed = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+            const parsed = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
             return parsed.reactionMessageId;
         }
     } catch (error) {
-        console.error('Could not read config.json:', error);
+        console.error("Could not read config.json:", error);
     }
     return null;
 }
@@ -485,20 +548,26 @@ function getActiveMessageId() {
 async function syncReactionRoles() {
     const activeMessageId = getActiveMessageId();
     if (!activeMessageId) {
-        console.log('No active reaction message ID found to sync.');
+        console.log("No active reaction message ID found to sync.");
         return;
     }
 
-    console.log('Checking for reactions changed while offline...');
+    console.log("Checking for reactions changed while offline...");
     try {
         for (const channelId of ALLOWED_CHANNELS) {
-            const channel = await discordClient.channels.fetch(channelId).catch(() => null);
+            const channel = await discordClient.channels
+                .fetch(channelId)
+                .catch(() => null);
             if (!channel || !channel.isTextBased()) continue;
 
-            const targetMessage = await channel.messages.fetch(activeMessageId).catch(() => null);
+            const targetMessage = await channel.messages
+                .fetch(activeMessageId)
+                .catch(() => null);
             if (!targetMessage) continue;
 
-            console.log(`Found active menu message [${activeMessageId}]. Syncing additions and removals...`);
+            console.log(
+                `Found active menu message [${activeMessageId}]. Syncing additions and removals...`,
+            );
 
             // Track which users currently have each role's reaction active
             const activeReactorsByRole = {};
@@ -530,18 +599,22 @@ async function syncReactionRoles() {
 
                     if (hasReaction && !hasRole) {
                         await member.roles.add(roleId).catch(console.error);
-                        console.log(`Sync: granted missed role ${roleId} (${ROLE_KEYWORDS[roleId]}) to ${member.user.tag}`);
+                        console.log(
+                            `Sync: granted missed role ${roleId} (${ROLE_KEYWORDS[roleId]}) to ${member.user.tag}`,
+                        );
                     } else if (!hasReaction && hasRole) {
                         await member.roles.remove(roleId).catch(console.error);
-                        console.log(`Sync: removed stale role ${roleId} (${ROLE_KEYWORDS[roleId]}) from ${member.user.tag}`);
+                        console.log(
+                            `Sync: removed stale role ${roleId} (${ROLE_KEYWORDS[roleId]}) from ${member.user.tag}`,
+                        );
                     }
                 }
             }
             break; // Only one channel should have the active menu message
         }
-        console.log('Offline reaction sync complete.');
+        console.log("Offline reaction sync complete.");
     } catch (error) {
-        console.error('Failed offline reaction sync:', error);
+        console.error("Failed offline reaction sync:", error);
     }
 }
 
@@ -550,16 +623,18 @@ async function syncReactionRoles() {
  */
 function buildReactionRoleEmbed() {
     return new EmbedBuilder()
-        .setColor(0x0099FF)
-        .setTitle('Select Your Notification Roles')
-        .setDescription('React to this message with the emojis below to opt-in or opt-out of specific community deal pings!')
+        .setColor(0x0099ff)
+        .setTitle("Select Your Notification Roles")
+        .setDescription(
+            "React to this message with the emojis below to opt-in or opt-out of specific community deal pings!",
+        )
         .addFields(
             REACTION_ROLES.map(({ emojiName, emojiId, label }) => ({
                 name: label,
-                value: `React with <:${emojiName}:${emojiId}> to get notified for ${label} deals.`
-            }))
+                value: `React with <:${emojiName}:${emojiId}> to get notified for ${label} deals.`,
+            })),
         )
-        .setFooter({ text: 'Remove your reaction at any time to remove the role.' })
+        .setFooter({ text: "Remove your reaction at any time to remove the role." })
         .setTimestamp();
 }
 
@@ -587,15 +662,23 @@ async function refreshReactionRoleMenu(channel) {
             // Unknown Message means it was deleted/never existed here; anything else (e.g.
             // missing permissions) is worth surfacing instead of silently duplicating the post
             if (error.code === 10008) {
-                console.log(`Previous reaction message (${existingMessageId}) not found in this channel; posting a new one.`);
+                console.log(
+                    `Previous reaction message (${existingMessageId}) not found in this channel; posting a new one.`,
+                );
             } else {
-                console.error(`Failed to fetch/edit existing reaction message (${existingMessageId}):`, error);
+                console.error(
+                    `Failed to fetch/edit existing reaction message (${existingMessageId}):`,
+                    error,
+                );
             }
         }
     }
 
     const newMessage = await channel.send({ embeds: [reactionEmbed] });
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify({ reactionMessageId: newMessage.id }, null, 2));
+    fs.writeFileSync(
+        CONFIG_PATH,
+        JSON.stringify({ reactionMessageId: newMessage.id }, null, 2),
+    );
     console.log(`Saved new reactionMessageId to config.json: ${newMessage.id}`);
 
     for (const emojiId of Object.keys(EMOJI_ROLE_MAP)) {
@@ -606,58 +689,77 @@ async function refreshReactionRoleMenu(channel) {
 }
 
 // Handles the setup-roles, toonie-math-time, math-time-open, say, and add-reaction-role slash commands
-discordClient.on('interactionCreate', async (interaction) => {
+discordClient.on("interactionCreate", async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
-    if (interaction.commandName === 'say') {
+    if (interaction.commandName === "say") {
         if (interaction.user.id !== SAY_COMMAND_USER_ID) {
-            await interaction.reply({ content: 'You are not allowed to use this command.', flags: MessageFlags.Ephemeral });
+            await interaction.reply({
+                content: "You are not allowed to use this command.",
+                flags: MessageFlags.Ephemeral,
+            });
             return;
         }
 
-        const targetChannel = interaction.options.getChannel('channel') || interaction.channel;
-        const messageText = interaction.options.getString('message', true);
+        const targetChannel =
+            interaction.options.getChannel("channel") || interaction.channel;
+        const messageText = interaction.options.getString("message", true);
 
         try {
             await targetChannel.send(messageText);
-            await interaction.reply({ content: `Message sent in ${targetChannel}.`, flags: MessageFlags.Ephemeral });
+            await interaction.reply({
+                content: `Message sent in ${targetChannel}.`,
+                flags: MessageFlags.Ephemeral,
+            });
         } catch (error) {
-            console.error('Failed to send message via /say:', error);
-            await interaction.reply({ content: 'Failed to send that message — check the channel and my permissions there.', flags: MessageFlags.Ephemeral });
+            console.error("Failed to send message via /say:", error);
+            await interaction.reply({
+                content:
+                    "Failed to send that message — check the channel and my permissions there.",
+                flags: MessageFlags.Ephemeral,
+            });
         }
         return;
     }
 
-    if (interaction.commandName === 'toonie-math-time') {
+    if (interaction.commandName === "toonie-math-time") {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         await postMathChallenge(interaction.channel);
-        await interaction.editReply({ content: 'Math challenge posted!' });
+        await interaction.editReply({ content: "Math challenge posted!" });
         return;
     }
 
-    if (interaction.commandName === 'math-time-open') {
+    if (interaction.commandName === "math-time-open") {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         await postMathChallenge(interaction.channel, null);
-        await interaction.editReply({ content: 'Math challenge posted!' });
+        await interaction.editReply({ content: "Math challenge posted!" });
         return;
     }
 
-    if (interaction.commandName === 'add-reaction-role') {
-        if (!interaction.member.permissions.has('Administrator')) {
-            await interaction.reply({ content: 'You must be an Administrator to use this command.', flags: MessageFlags.Ephemeral });
+    if (interaction.commandName === "add-reaction-role") {
+        if (!interaction.member.permissions.has("Administrator")) {
+            await interaction.reply({
+                content: "You must be an Administrator to use this command.",
+                flags: MessageFlags.Ephemeral,
+            });
             return;
         }
 
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-        const emojiInput = interaction.options.getString('emoji', true).trim();
-        const label = interaction.options.getString('label', true).trim();
-        const keywordsInput = interaction.options.getString('keywords', true);
-        let role = interaction.options.getRole('role');
+        const emojiInput = interaction.options.getString("emoji", true).trim();
+        const label = interaction.options.getString("label", true).trim();
+        const keywordsInput = interaction.options.getString("keywords", true);
+        let role = interaction.options.getRole("role");
 
-        const keywords = keywordsInput.split(',').map(keyword => keyword.trim().toLowerCase()).filter(Boolean);
+        const keywords = keywordsInput
+            .split(",")
+            .map((keyword) => keyword.trim().toLowerCase())
+            .filter(Boolean);
         if (keywords.length === 0) {
-            await interaction.editReply({ content: 'Please provide at least one keyword.' });
+            await interaction.editReply({
+                content: "Please provide at least one keyword.",
+            });
             return;
         }
 
@@ -670,95 +772,145 @@ discordClient.on('interactionCreate', async (interaction) => {
             // Bare numeric ID: look up the actual emoji in this server to get its name
             const guildEmoji = interaction.guild.emojis.cache.get(emojiInput);
             if (!guildEmoji) {
-                await interaction.editReply({ content: 'I couldn\'t find a custom emoji with that ID in this server.' });
+                await interaction.editReply({
+                    content:
+                        "I couldn't find a custom emoji with that ID in this server.",
+                });
                 return;
             }
             emojiName = guildEmoji.name;
             emojiId = guildEmoji.id;
         } else {
-            await interaction.editReply({ content: 'That doesn\'t look like a custom server emoji. You can paste either the raw mention (type a backslash right before the emoji, e.g. `\\:emojiname:`, and send it to reveal `<:name:id>`) or just the numeric emoji ID.' });
+            await interaction.editReply({
+                content:
+                    "That doesn't look like a custom server emoji. You can paste either the raw mention (type a backslash right before the emoji, e.g. `\\:emojiname:`, and send it to reveal `<:name:id>`) or just the numeric emoji ID.",
+            });
             return;
         }
 
         if (EMOJI_ROLE_MAP[emojiId]) {
-            await interaction.editReply({ content: 'That emoji is already mapped to a role.' });
+            await interaction.editReply({
+                content: "That emoji is already mapped to a role.",
+            });
             return;
         }
 
         if (role) {
             if (role.id === interaction.guild.id) {
-                await interaction.editReply({ content: 'You can\'t use @everyone as a reaction role.' });
+                await interaction.editReply({
+                    content: "You can't use @everyone as a reaction role.",
+                });
                 return;
             }
             if (role.managed) {
-                await interaction.editReply({ content: 'That role is managed by an integration/bot and can\'t be manually assigned.' });
+                await interaction.editReply({
+                    content:
+                        "That role is managed by an integration/bot and can't be manually assigned.",
+                });
                 return;
             }
-            if (REACTION_ROLES.some(entry => entry.roleId === role.id)) {
-                await interaction.editReply({ content: 'That role is already mapped to a different emoji.' });
+            if (REACTION_ROLES.some((entry) => entry.roleId === role.id)) {
+                await interaction.editReply({
+                    content: "That role is already mapped to a different emoji.",
+                });
                 return;
             }
         } else {
             const newRoleName = `${keywords[0].toUpperCase()} (Wario64 Deals)`;
             try {
-                role = await interaction.guild.roles.create({ name: newRoleName, reason: `Created via /add-reaction-role by ${interaction.user.tag}` });
+                role = await interaction.guild.roles.create({
+                    name: newRoleName,
+                    reason: `Created via /add-reaction-role by ${interaction.user.tag}`,
+                });
             } catch (error) {
-                console.error('Failed to create new role via /add-reaction-role:', error);
-                await interaction.editReply({ content: 'Failed to create a new role \u2014 make sure I have the Manage Roles permission.' });
+                console.error(
+                    "Failed to create new role via /add-reaction-role:",
+                    error,
+                );
+                await interaction.editReply({
+                    content:
+                        "Failed to create a new role \u2014 make sure I have the Manage Roles permission.",
+                });
                 return;
             }
         }
 
         const botMember = await interaction.guild.members.fetchMe();
         if (botMember.roles.highest.position <= role.position) {
-            await interaction.editReply({ content: 'My highest role needs to be above that role for me to assign it. Move my role higher in the role list and try again.' });
+            await interaction.editReply({
+                content:
+                    "My highest role needs to be above that role for me to assign it. Move my role higher in the role list and try again.",
+            });
             return;
         }
 
         const newEntry = { emojiName, emojiId, roleId: role.id, label, keywords };
         REACTION_ROLES.push(newEntry);
-        fs.writeFileSync(REACTION_ROLES_PATH, JSON.stringify(REACTION_ROLES, null, 2));
+        fs.writeFileSync(
+            REACTION_ROLES_PATH,
+            JSON.stringify(REACTION_ROLES, null, 2),
+        );
         rebuildRoleLookups();
 
         try {
-            const { message, created } = await refreshReactionRoleMenu(interaction.channel);
-            const menuStatus = created ? `New role menu posted! (${message.id})` : `Existing role menu updated! ${message.url}`;
-            await interaction.editReply({ content: `Added "${label}" (<:${emojiName}:${emojiId}> \u2192 <@&${role.id}>). ${menuStatus}` });
+            const { message, created } = await refreshReactionRoleMenu(
+                interaction.channel,
+            );
+            const menuStatus = created
+                ? `New role menu posted! (${message.id})`
+                : `Existing role menu updated! ${message.url}`;
+            await interaction.editReply({
+                content: `Added "${label}" (<:${emojiName}:${emojiId}> \u2192 <@&${role.id}>). ${menuStatus}`,
+            });
         } catch (error) {
-            console.error('Failed to refresh reaction role menu after adding a role:', error);
-            await interaction.editReply({ content: `Added "${label}", but couldn't refresh the posted menu automatically \u2014 run /setup-roles to update it.` });
+            console.error(
+                "Failed to refresh reaction role menu after adding a role:",
+                error,
+            );
+            await interaction.editReply({
+                content: `Added "${label}", but couldn't refresh the posted menu automatically \u2014 run /setup-roles to update it.`,
+            });
         }
         return;
     }
 
-    if (interaction.commandName !== 'setup-roles') return;
+    if (interaction.commandName !== "setup-roles") return;
 
-    if (!interaction.member.permissions.has('Administrator')) {
-        await interaction.reply({ content: 'You must be an Administrator to use this command.', flags: MessageFlags.Ephemeral });
+    if (!interaction.member.permissions.has("Administrator")) {
+        await interaction.reply({
+            content: "You must be an Administrator to use this command.",
+            flags: MessageFlags.Ephemeral,
+        });
         return;
     }
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     try {
-        const { message, created } = await refreshReactionRoleMenu(interaction.channel);
+        const { message, created } = await refreshReactionRoleMenu(
+            interaction.channel,
+        );
         await interaction.editReply({
-            content: created ? `New role menu posted! (${message.id})` : `Existing role menu embed updated! ${message.url}`
+            content: created
+                ? `New role menu posted! (${message.id})`
+                : `Existing role menu embed updated! ${message.url}`,
         });
     } catch (error) {
-        console.error('Failed to run setup-roles:', error);
-        await interaction.editReply({ content: 'An error occurred while managing the menu.' });
+        console.error("Failed to run setup-roles:", error);
+        await interaction.editReply({
+            content: "An error occurred while managing the menu.",
+        });
     }
 });
 
-discordClient.on('messageReactionAdd', async (reaction, user) => {
+discordClient.on("messageReactionAdd", async (reaction, user) => {
     if (user.bot) return;
 
     if (reaction.partial) {
         try {
             await reaction.fetch();
         } catch (error) {
-            console.error('Failed fetching partial reaction:', error);
+            console.error("Failed fetching partial reaction:", error);
             return;
         }
     }
@@ -771,20 +923,22 @@ discordClient.on('messageReactionAdd', async (reaction, user) => {
     try {
         const member = await reaction.message.guild.members.fetch(user.id);
         await member.roles.add(roleId);
-        console.log(`Added role ${roleId} (${ROLE_KEYWORDS[roleId]}) to ${user.tag}`);
+        console.log(
+            `Added role ${roleId} (${ROLE_KEYWORDS[roleId]}) to ${user.tag}`,
+        );
     } catch (error) {
-        console.error('Failed to add role:', error);
+        console.error("Failed to add role:", error);
     }
 });
 
-discordClient.on('messageReactionRemove', async (reaction, user) => {
+discordClient.on("messageReactionRemove", async (reaction, user) => {
     if (user.bot) return;
 
     if (reaction.partial) {
         try {
             await reaction.fetch();
         } catch (error) {
-            console.error('Failed fetching partial reaction:', error);
+            console.error("Failed fetching partial reaction:", error);
             return;
         }
     }
@@ -797,9 +951,11 @@ discordClient.on('messageReactionRemove', async (reaction, user) => {
     try {
         const member = await reaction.message.guild.members.fetch(user.id);
         await member.roles.remove(roleId);
-        console.log(`Removed role ${roleId} (${ROLE_KEYWORDS[roleId]}) from ${user.tag}`);
+        console.log(
+            `Removed role ${roleId} (${ROLE_KEYWORDS[roleId]}) from ${user.tag}`,
+        );
     } catch (error) {
-        console.error('Failed to remove role:', error);
+        console.error("Failed to remove role:", error);
     }
 });
 
