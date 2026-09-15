@@ -1,0 +1,37 @@
+[
+  {
+    "emojiName": "BeedleEyes",
+    "emojiId": "1100853528131534868",
+    "roleId": "1548210095584845834",
+    "label": "Legend of Zelda",
+    "keywords": ["zelda", "ocarina of time"]
+  },
+  {
+    "emojiName": "ResidentSleeper",
+    "emojiId": "254098481688346626",
+    "roleId": "1548530092362301531",
+    "label": "Metroid",
+    "keywords": ["metroid", "ravenous"]
+  },
+  {
+    "emojiName": "Fingor1",
+    "emojiId": "835627577376243772",
+    "roleId": "1549129651341885721",
+    "label": "Amiibo",
+    "keywords": ["amiibo"]
+  },
+  {
+    "emojiName": "MarioThink",
+    "emojiId": "324952151682056202",
+    "roleId": "1549129902173987007",
+    "label": "Nintendo",
+    "keywords": ["nintendo"]
+  },
+  {
+    "emojiName": "ExpTicket",
+    "emojiId": "1044327656998568048",
+    "roleId": "1549148348273926154",
+    "label": "eShop Gift Cards",
+    "keywords": ["gift card"]
+  }
+]
