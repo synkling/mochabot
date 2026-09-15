@@ -40,11 +40,17 @@ const POLL_INTERVAL_MS = 60000;
 // Flavor text shown before the role pings on a cross-posted BlueSky message; one is picked at random
 const ROLE_PING_MESSAGES = [
     "TO ME, MY NIGGAS!",
-    "Which one of you home of sexuals asked for this?",
-    "Peep this shit cuz.",
-    "You got like twenty seconds bro gl",
+    "which one of you home of sexuals asked for this?",
+    "peep this shit cuz.",
+    "you got like twenty seconds bro gl",
     "meow meow meow meow meow meow meow bitch meow",
-    "Quieres?",
+    "quieres?",
+    "who wallet got pocket lint and a dream in it cuz...",
+    "uwu nyaaaa owo you broke bitch",
+    "donate 2 dollars to synnie's ko-fi to keep me alive i'm so hungry",
+    "neko neko beeeeeeeeam",
+    "do u mind i am grooming",
+    "FOCUS, M!!!"
 ];
 
 // Only this user may run /say
