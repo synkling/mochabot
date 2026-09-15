@@ -85,7 +85,7 @@ rebuildRoleLookups();
 // Math quiz settings: periodically challenges a user with a simple algebra equation
 const MATH_QUIZ_CHANNEL_ID = process.env.MATH_QUIZ_CHANNEL_ID;
 const MATH_QUIZ_USER_ID = process.env.MATH_QUIZ_USER_ID;
-const MATH_QUIZ_INTERVAL_MS = 30 * 60 * 1000;
+const MATH_QUIZ_INTERVAL_MS = 60 * 60 * 1000;
 
 // Guild the slash commands (/setup-roles, /toonie-math-time) are scoped to, instead of registering them globally
 const COMMAND_GUILD_ID = process.env.COMMAND_GUILD_ID;
