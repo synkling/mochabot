@@ -47,7 +47,7 @@ const ROLE_PING_MESSAGES = [
     "quieres?",
     "who wallet got pocket lint and a dream in it cuz...",
     "uwu nyaaaa owo you broke bitch",
-    "donate 2 dollars to synnie's ko-fi to keep me alive i'm so hungry",
+    "donate 3 dollars to [synnie's ko-fi](https://ko-fi.com/synnie) to keep me alive i'm so hungry",
     "neko neko beeeeeeeeam",
     "do u mind i am grooming",
     "FOCUS, M!!!"
