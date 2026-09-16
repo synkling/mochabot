@@ -457,6 +457,12 @@ async function postToDiscord(channel, post) {
     }
 
     await channel.send(messagePayload);
+
+    // Post video separately so Discord auto-embeds it
+    const videoUrl = extractEmbedVideoUrl(post.embed);
+    if (videoUrl) {
+        await channel.send(videoUrl);
+    }
 }
 
 /**
@@ -474,6 +480,23 @@ function extractEmbedImageUrl(embed) {
             return embed.external?.thumb ?? null;
         case "app.bsky.embed.recordWithMedia#view":
             return extractEmbedImageUrl(embed.media);
+        default:
+            return null;
+    }
+}
+
+/**
+ * Pulls a displayable video URL out of a post's embed view, if it has one.
+ * Handles plain video posts and quote posts that also attach media (recordWithMedia).
+ */
+function extractEmbedVideoUrl(embed) {
+    if (!embed) return null;
+
+    switch (embed.$type) {
+        case "app.bsky.embed.video#view":
+            return embed.video?.cid ? `https://cdn.bsky.app/video/${embed.video.cid}` : null;
+        case "app.bsky.embed.recordWithMedia#view":
+            return extractEmbedVideoUrl(embed.media);
         default:
             return null;
     }
