@@ -50,9 +50,7 @@ const ROLE_PING_MESSAGES = [
     "donate 3 dollars to [synnie's ko-fi](https://ko-fi.com/synnie) to keep me alive i'm so hungry",
     "neko neko beeeeeeeeam",
     "do u mind i am grooming",
-    "FOCUS, M!!!",
-    "u can buy a Hole meal with these savings",
-    "synnie drugs me to keep me working"
+    "FOCUS, M!!!"
 ];
 
 // Only this user may run /say
@@ -242,7 +240,10 @@ discordClient.once("clientReady", async () => {
 
     setInterval(postScheduledMathChallenge, MATH_QUIZ_INTERVAL_MS);
 
-    setInterval(sendDeveloperReminder, DEVELOPER_REMINDER_INTERVAL_MS);
+    // Set up 28-day developer reminder with initial delay to avoid spamming on restart
+    setTimeout(() => {
+        setInterval(sendDeveloperReminder, DEVELOPER_REMINDER_INTERVAL_MS);
+    }, DEVELOPER_REMINDER_INTERVAL_MS);
 
     await syncReactionRoles();
 });
