@@ -117,6 +117,36 @@ const COMMAND_GUILD_ID = process.env.COMMAND_GUILD_ID;
 
 // Persists the ID of the posted reaction-role menu message across restarts
 const CONFIG_PATH = path.join(__dirname, "config.json");
+
+// Track when the last developer reminder was sent
+let lastDeveloperReminderTime = 0;
+
+function loadLastReminderTime() {
+    try {
+        if (fs.existsSync(CONFIG_PATH)) {
+            const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
+            return config.lastDeveloperReminderTime || 0;
+        }
+    } catch (error) {
+        console.error("Could not read config.json for reminder time:", error);
+    }
+    return 0;
+}
+
+function saveLastReminderTime() {
+    try {
+        let config = {};
+        if (fs.existsSync(CONFIG_PATH)) {
+            config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
+        }
+        config.lastDeveloperReminderTime = Date.now();
+        fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+    } catch (error) {
+        console.error("Could not save reminder time to config.json:", error);
+    }
+}
+
+lastDeveloperReminderTime = loadLastReminderTime();
 // =======================================================
 
 const discordClient = new Client({
@@ -240,10 +270,8 @@ discordClient.once("clientReady", async () => {
 
     setInterval(postScheduledMathChallenge, MATH_QUIZ_INTERVAL_MS);
 
-    // Set up 28-day developer reminder with initial delay to avoid spamming on restart
-    setTimeout(() => {
-        setInterval(sendDeveloperReminder, DEVELOPER_REMINDER_INTERVAL_MS);
-    }, DEVELOPER_REMINDER_INTERVAL_MS);
+    // Check for 28-day developer reminder every hour
+    setInterval(sendDeveloperReminder, 60 * 60 * 1000);
 
     await syncReactionRoles();
 });
@@ -359,14 +387,24 @@ async function postScheduledMathChallenge() {
 }
 
 /**
- * Sends a 28-day reminder to the developer via DM.
+ * Sends a 28-day reminder to the developer via DM, but only if 28 days have passed since the last one.
  */
 async function sendDeveloperReminder() {
+    const now = Date.now();
+    const timeSinceLastReminder = now - lastDeveloperReminderTime;
+
+    // Only send if 28 days have passed
+    if (timeSinceLastReminder < DEVELOPER_REMINDER_INTERVAL_MS) {
+        return;
+    }
+
     try {
         const user = await discordClient.users.fetch(DEVELOPER_USER_ID);
         await user.send(
             "father, i need l00ps, pls log into the server and verify activity or i WILL shit on your bed"
         );
+        lastDeveloperReminderTime = now;
+        saveLastReminderTime();
         console.log(`Sent 28-day reminder to developer (${user.tag})`);
     } catch (error) {
         console.error("Failed to send developer reminder:", error);
