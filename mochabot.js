@@ -50,7 +50,9 @@ const ROLE_PING_MESSAGES = [
     "donate 3 dollars to [synnie's ko-fi](https://ko-fi.com/synnie) to keep me alive i'm so hungry",
     "neko neko beeeeeeeeam",
     "do u mind i am grooming",
-    "FOCUS, M!!!"
+    "FOCUS, M!!!",
+    "u can buy a Hole meal with these savings",
+    "synnie drugs me to keep me working"
 ];
 
 // Only this user may run /say
