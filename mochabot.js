@@ -56,6 +56,10 @@ const ROLE_PING_MESSAGES = [
 // Only this user may run /say
 const SAY_COMMAND_USER_ID = "116938174823006209";
 
+// Developer reminder settings: ping the developer every 28 days
+const DEVELOPER_USER_ID = process.env.DEVELOPER_USER_ID || SAY_COMMAND_USER_ID;
+const DEVELOPER_REMINDER_INTERVAL_MS = 28 * 24 * 60 * 60 * 1000; // 28 days
+
 // Chat keyword monitor settings
 const ALLOWED_CHANNELS = ["121721532551528448", "1548135439829835906"];
 
@@ -236,6 +240,8 @@ discordClient.once("clientReady", async () => {
 
     setInterval(postScheduledMathChallenge, MATH_QUIZ_INTERVAL_MS);
 
+    setInterval(sendDeveloperReminder, DEVELOPER_REMINDER_INTERVAL_MS);
+
     await syncReactionRoles();
 });
 
@@ -347,6 +353,21 @@ async function postScheduledMathChallenge() {
         .fetch(MATH_QUIZ_CHANNEL_ID)
         .catch(() => null);
     await postMathChallenge(channel);
+}
+
+/**
+ * Sends a 28-day reminder to the developer via DM.
+ */
+async function sendDeveloperReminder() {
+    try {
+        const user = await discordClient.users.fetch(DEVELOPER_USER_ID);
+        await user.send(
+            "father, i need l00ps, pls log into the server and verify activity or i WILL shit on your bed"
+        );
+        console.log(`Sent 28-day reminder to developer (${user.tag})`);
+    } catch (error) {
+        console.error("Failed to send developer reminder:", error);
+    }
 }
 
 // Reveals the answer only when the tagged user replies directly to their posted challenge
