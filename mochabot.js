@@ -50,7 +50,8 @@ const ROLE_PING_MESSAGES = [
     "donate 3 dollars to [synnie's ko-fi](https://ko-fi.com/synnie) to keep me alive i'm so hungry",
     "neko neko beeeeeeeeam",
     "do u mind i am grooming",
-    "FOCUS, M!!!"
+    "FOCUS, M!!!",
+    "You were excited for this deal until you noticed you only have one rupee in your pocket..."
 ];
 
 // Only this user may run /say
@@ -513,8 +514,20 @@ async function postToDiscord(channel, post) {
 
     const messagePayload = { embeds: [embed] };
     if (rolesToPing.length > 0) {
+        // Get the Zelda role ID from REACTION_ROLES if it exists
+        const zeldaRole = REACTION_ROLES.find(
+            (role) => role.keywords.includes("zelda")
+        );
+        const isZeldaPing = zeldaRole && rolesToPing.includes(`<@&${zeldaRole.roleId}>`);
+
+        // Filter ping messages: exclude rupee message unless it's a Zelda ping
+        const availableMessages = ROLE_PING_MESSAGES.filter((msg) => {
+            const isRupeeMessage = msg.includes("rupee");
+            return isRupeeMessage ? isZeldaPing : true;
+        });
+
         const pingMessage =
-            ROLE_PING_MESSAGES[randomInt(0, ROLE_PING_MESSAGES.length - 1)];
+            availableMessages[randomInt(0, availableMessages.length - 1)];
         messagePayload.content = `${pingMessage} ${rolesToPing.join(" ")}`;
     }
 
