@@ -523,7 +523,10 @@ async function postToDiscord(channel, post) {
     // Post video separately so Discord auto-embeds it
     const videoUrl = extractEmbedVideoUrl(post.embed);
     if (videoUrl) {
+        console.log(`Posting video: ${videoUrl}`);
         await channel.send(videoUrl);
+    } else if (post.embed) {
+        console.log(`Post has embed but no video extracted. Embed type: ${post.embed.$type}`);
     }
 }
 
@@ -554,10 +557,15 @@ function extractEmbedImageUrl(embed) {
 function extractEmbedVideoUrl(embed) {
     if (!embed) return null;
 
+    console.log(`Checking embed type: ${embed.$type}`);
+
     switch (embed.$type) {
         case "app.bsky.embed.video#view":
-            return embed.video?.cid ? `https://cdn.bsky.app/video/${embed.video.cid}` : null;
+            const videoUrl = embed.video?.cid ? `https://cdn.bsky.app/video/${embed.video.cid}` : null;
+            console.log(`Video embed found. CID: ${embed.video?.cid}, URL: ${videoUrl}`);
+            return videoUrl;
         case "app.bsky.embed.recordWithMedia#view":
+            console.log(`RecordWithMedia found, recursing...`);
             return extractEmbedVideoUrl(embed.media);
         default:
             return null;
