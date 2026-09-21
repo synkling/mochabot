@@ -279,12 +279,27 @@ discordClient.once("clientReady", async () => {
 
 /**
  * Picks a random equation type so challenges alternate between a "solve for x"
- * quadratic and a "solve for x and y" system of equations.
+ * quadratic, a polynomial equation, a binomial multiplication question, a perfect
+ * square problem, a number pattern question, and a "solve for x and y" system of equations.
  */
 function generateAlgebraEquation() {
-    return Math.random() < 0.5
-        ? generateFoilEquation()
-        : generateSystemEquation();
+    const roll = Math.random();
+    if (roll < 0.1667) {
+        return generateFoilEquation();
+    }
+    if (roll < 0.3334) {
+        return generatePolynomialEquation();
+    }
+    if (roll < 0.5001) {
+        return generateBinomialMultiplicationEquation();
+    }
+    if (roll < 0.6668) {
+        return generatePerfectSquareEquation();
+    }
+    if (roll < 0.8335) {
+        return generateNumberPatternEquation();
+    }
+    return generateSystemEquation();
 }
 
 /**
@@ -306,6 +321,110 @@ function generateFoilEquation() {
 
     return {
         equation: `x^2${bTerm}${cTerm} = 0`,
+        answer,
+        prompt: "Solve for x:",
+    };
+}
+
+/**
+ * Builds a binomial product question like (x + a)(x + b), asking for the expanded form.
+ */
+function generateBinomialMultiplicationEquation() {
+    const a = randomNonZeroInt(-8, 8);
+    const b = randomNonZeroInt(-8, 8);
+
+    const firstBinomial = `x ${a >= 0 ? "+" : "-"} ${Math.abs(a)}`;
+    const secondBinomial = `x ${b >= 0 ? "+" : "-"} ${Math.abs(b)}`;
+
+    const total = a + b;
+    const constant = a * b;
+    const totalTerm = total === 0 ? "" : total > 0 ? ` + ${total}x` : ` - ${Math.abs(total)}x`;
+    const constantTerm = constant === 0 ? "" : constant > 0 ? ` + ${constant}` : ` - ${Math.abs(constant)}`;
+
+    return {
+        equation: `(${firstBinomial})(${secondBinomial})`,
+        answer: `x^2${totalTerm}${constantTerm}`,
+        prompt: "Multiply the binomials:",
+    };
+}
+
+/**
+ * Builds a perfect-square trinomial equation like x^2 + 6x + 9 = 0, whose solution is a repeated root.
+ */
+function generatePerfectSquareEquation() {
+    const root = randomInt(-8, 8);
+    const middle = 2 * root;
+    const constant = root * root;
+
+    const middleTerm = middle === 0 ? "" : middle > 0 ? ` + ${middle}x` : ` - ${Math.abs(middle)}x`;
+    const constantTerm = constant === 0 ? "" : constant > 0 ? ` + ${constant}` : ` - ${Math.abs(constant)}`;
+
+    return {
+        equation: `x^2${middleTerm}${constantTerm} = 0`,
+        answer: `x = ${root}`,
+        prompt: "Solve for x:",
+    };
+}
+
+/**
+ * Builds a number pattern question for the next value in a simple arithmetic or geometric sequence.
+ */
+function generateNumberPatternEquation() {
+    const sequenceLength = 4;
+    const arithmeticDifference = randomInt(-7, 7);
+    const start = randomInt(-20, 20);
+
+    const useGeometric = Math.random() < 0.5;
+    const ratio = randomInt(-4, 4);
+    while (ratio === 0 || ratio === 1 || ratio === -1) {
+        ratio = randomInt(-4, 4);
+    }
+
+    let sequence;
+    if (useGeometric) {
+        sequence = Array.from({ length: sequenceLength }, (_, index) => start * Math.pow(ratio, index));
+    } else {
+        sequence = Array.from({ length: sequenceLength }, (_, index) => start + arithmeticDifference * index);
+    }
+
+    const answer = useGeometric
+        ? `${start * Math.pow(ratio, sequenceLength)}`
+        : `${start + arithmeticDifference * sequenceLength}`;
+
+    const pattern = sequence.join(", ");
+    return {
+        equation: `${pattern}`,
+        answer: `${answer}`,
+        prompt: "Find the next number in the pattern:",
+    };
+}
+
+/**
+ * Builds a cubic whose integer roots can be found by factoring.
+ */
+function generatePolynomialEquation() {
+    const roots = [];
+    while (roots.length < 3) {
+        const candidate = randomInt(-7, 7);
+        if (!roots.includes(candidate)) {
+            roots.push(candidate);
+        }
+    }
+
+    roots.sort((first, second) => first - second);
+    const [r1, r2, r3] = roots;
+    const xSquaredCoefficient = -(r1 + r2 + r3);
+    const xCoefficient = r1 * r2 + r1 * r3 + r2 * r3;
+    const constantTerm = -(r1 * r2 * r3);
+
+    const x2Term = xSquaredCoefficient === 0 ? "" : xSquaredCoefficient > 0 ? ` + ${xSquaredCoefficient}x^2` : ` - ${Math.abs(xSquaredCoefficient)}x^2`;
+    const xTerm = xCoefficient === 0 ? "" : xCoefficient > 0 ? ` + ${xCoefficient}x` : ` - ${Math.abs(xCoefficient)}x`;
+    const constant = constantTerm === 0 ? "" : constantTerm > 0 ? ` + ${constantTerm}` : ` - ${Math.abs(constantTerm)}`;
+
+    const answer = roots.map((root) => `x = ${root}`).join(" or ");
+
+    return {
+        equation: `x^3${x2Term}${xTerm}${constant} = 0`,
         answer,
         prompt: "Solve for x:",
     };
