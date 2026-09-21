@@ -367,33 +367,48 @@ function generatePerfectSquareEquation() {
 }
 
 /**
- * Builds a number pattern question for the next value in a simple arithmetic or geometric sequence.
+ * Builds a harder number-pattern question using a more sophisticated
+ * arithmetic/geometric relationship or a two-step pattern.
  */
 function generateNumberPatternEquation() {
-    const sequenceLength = 4;
-    const arithmeticDifference = randomInt(-7, 7);
-    const start = randomInt(-20, 20);
+    const sequenceLength = 5;
+    const hardMode = Math.random() < 0.5;
 
-    const useGeometric = Math.random() < 0.5;
+    if (hardMode) {
+        const start = randomInt(-12, 12);
+        const difference = randomInt(-8, 8);
+        const secondDifference = randomInt(-5, 5);
+
+        const sequence = Array.from({ length: sequenceLength }, (_, index) => {
+            if (index === 0) return start;
+            if (index === 1) return start + difference;
+            return sequence[index - 1] + difference + (index - 1) * secondDifference;
+        });
+
+        const answer = sequence[sequenceLength - 1] + difference + (sequenceLength - 1) * secondDifference;
+
+        return {
+            equation: sequence.join(", "),
+            answer: `${answer}`,
+            prompt: "Find the next number in the pattern:",
+        };
+    }
+
+    const start = randomInt(-10, 10);
     const ratio = randomInt(-4, 4);
     while (ratio === 0 || ratio === 1 || ratio === -1) {
         ratio = randomInt(-4, 4);
     }
 
-    let sequence;
-    if (useGeometric) {
-        sequence = Array.from({ length: sequenceLength }, (_, index) => start * Math.pow(ratio, index));
-    } else {
-        sequence = Array.from({ length: sequenceLength }, (_, index) => start + arithmeticDifference * index);
-    }
+    const sequence = Array.from({ length: sequenceLength }, (_, index) => {
+        if (index === 0) return start;
+        return sequence[index - 1] * ratio;
+    });
 
-    const answer = useGeometric
-        ? `${start * Math.pow(ratio, sequenceLength)}`
-        : `${start + arithmeticDifference * sequenceLength}`;
+    const answer = sequence[sequenceLength - 1] * ratio;
 
-    const pattern = sequence.join(", ");
     return {
-        equation: `${pattern}`,
+        equation: sequence.join(", "),
         answer: `${answer}`,
         prompt: "Find the next number in the pattern:",
     };
