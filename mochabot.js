@@ -64,6 +64,30 @@ const DEVELOPER_REMINDER_INTERVAL_MS = 28 * 24 * 60 * 60 * 1000; // 28 days
 // Chat keyword monitor settings
 const ALLOWED_CHANNELS = ["121721532551528448", "1548135439829835906"];
 
+// Cursed general channel for secret messages
+const CURSED_GENERAL_CHANNEL_ID = process.env.CURSED_GENERAL_CHANNEL_ID;
+
+// Haunting messages to send secretly to users
+const HAUNTING_MESSAGES = [
+    "they know what you did.",
+    "the walls are watching.",
+    "your secrets are safe... for now.",
+    "we remember.",
+    "you can't escape what you've become.",
+    "the shadows whisper your name.",
+    "time moves differently here.",
+    "you were never alone.",
+    "they're coming for you.",
+    "the void calls.",
+    "your reflection doesn't match anymore.",
+    "sleep is not an escape.",
+];
+
+// Auto-haunting settings: randomly haunt users at random times
+const AUTO_HAUNT_ENABLED = process.env.AUTO_HAUNT_ENABLED === "true";
+const AUTO_HAUNT_MIN_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours minimum
+const AUTO_HAUNT_MAX_INTERVAL_MS = 8 * 60 * 60 * 1000; // 8 hours maximum
+
 // Role settings: all reaction roles (emoji, role ID, embed label, keywords) live in
 // custom-reaction-roles.json instead of here, to keep this file compact. Edit that file
 // directly, or use /add-reaction-role, to add/remove entries. KEYWORD_ROLES, EMOJI_ROLE_MAP,
@@ -238,6 +262,23 @@ const guildSlashCommands = [
                 )
                 .setRequired(false),
         ),
+    new SlashCommandBuilder()
+        .setName("haunt")
+        .setDescription(
+            "Send a haunting secret message to a user in cursed general (Synnie only).",
+        )
+        .addUserOption((option) =>
+            option
+                .setName("target")
+                .setDescription("The user to haunt")
+                .setRequired(true),
+        )
+        .addStringOption((option) =>
+            option
+                .setName("message")
+                .setDescription("Custom haunting message (optional, random if not provided)")
+                .setRequired(false),
+        ),
 ].map((command) => command.toJSON());
 
 const rest = new REST({ version: "10" }).setToken(DISCORD_BOT_TOKEN);
@@ -274,32 +315,23 @@ discordClient.once("clientReady", async () => {
     // Check for 28-day developer reminder every hour
     setInterval(sendDeveloperReminder, 60 * 60 * 1000);
 
+    // Start auto-haunting if enabled
+    if (AUTO_HAUNT_ENABLED) {
+        console.log("Auto-haunting enabled. Scheduling first haunt...");
+        scheduleAutoHaunt();
+    }
+
     await syncReactionRoles();
 });
 
 /**
  * Picks a random equation type so challenges alternate between a "solve for x"
- * quadratic, a polynomial equation, a binomial multiplication question, a perfect
- * square problem, a number pattern question, and a "solve for x and y" system of equations.
+ * quadratic and a "solve for x and y" system of equations.
  */
 function generateAlgebraEquation() {
-    const roll = Math.random();
-    if (roll < 0.1667) {
-        return generateFoilEquation();
-    }
-    if (roll < 0.3334) {
-        return generatePolynomialEquation();
-    }
-    if (roll < 0.5001) {
-        return generateBinomialMultiplicationEquation();
-    }
-    if (roll < 0.6668) {
-        return generatePerfectSquareEquation();
-    }
-    if (roll < 0.8335) {
-        return generateNumberPatternEquation();
-    }
-    return generateSystemEquation();
+    return Math.random() < 0.5
+        ? generateFoilEquation()
+        : generateSystemEquation();
 }
 
 /**
@@ -321,125 +353,6 @@ function generateFoilEquation() {
 
     return {
         equation: `x^2${bTerm}${cTerm} = 0`,
-        answer,
-        prompt: "Solve for x:",
-    };
-}
-
-/**
- * Builds a binomial product question like (x + a)(x + b), asking for the expanded form.
- */
-function generateBinomialMultiplicationEquation() {
-    const a = randomNonZeroInt(-8, 8);
-    const b = randomNonZeroInt(-8, 8);
-
-    const firstBinomial = `x ${a >= 0 ? "+" : "-"} ${Math.abs(a)}`;
-    const secondBinomial = `x ${b >= 0 ? "+" : "-"} ${Math.abs(b)}`;
-
-    const total = a + b;
-    const constant = a * b;
-    const totalTerm = total === 0 ? "" : total > 0 ? ` + ${total}x` : ` - ${Math.abs(total)}x`;
-    const constantTerm = constant === 0 ? "" : constant > 0 ? ` + ${constant}` : ` - ${Math.abs(constant)}`;
-
-    return {
-        equation: `(${firstBinomial})(${secondBinomial})`,
-        answer: `x^2${totalTerm}${constantTerm}`,
-        prompt: "Multiply the binomials:",
-    };
-}
-
-/**
- * Builds a perfect-square trinomial equation like x^2 + 6x + 9 = 0, whose solution is a repeated root.
- */
-function generatePerfectSquareEquation() {
-    const root = randomInt(-8, 8);
-    const middle = 2 * root;
-    const constant = root * root;
-
-    const middleTerm = middle === 0 ? "" : middle > 0 ? ` + ${middle}x` : ` - ${Math.abs(middle)}x`;
-    const constantTerm = constant === 0 ? "" : constant > 0 ? ` + ${constant}` : ` - ${Math.abs(constant)}`;
-
-    return {
-        equation: `x^2${middleTerm}${constantTerm} = 0`,
-        answer: `x = ${root}`,
-        prompt: "Solve for x:",
-    };
-}
-
-/**
- * Builds a harder number-pattern question using a more sophisticated
- * arithmetic/geometric relationship or a two-step pattern.
- */
-function generateNumberPatternEquation() {
-    const sequenceLength = 5;
-    const hardMode = Math.random() < 0.5;
-
-    if (hardMode) {
-        const start = randomInt(-12, 12);
-        const difference = randomInt(-8, 8);
-        const secondDifference = randomInt(-5, 5);
-
-        const sequence = Array.from({ length: sequenceLength }, (_, index) => {
-            if (index === 0) return start;
-            if (index === 1) return start + difference;
-            return sequence[index - 1] + difference + (index - 1) * secondDifference;
-        });
-
-        const answer = sequence[sequenceLength - 1] + difference + (sequenceLength - 1) * secondDifference;
-
-        return {
-            equation: sequence.join(", "),
-            answer: `${answer}`,
-            prompt: "Find the next number in the pattern:",
-        };
-    }
-
-    const start = randomInt(-10, 10);
-    const ratio = randomInt(-4, 4);
-    while (ratio === 0 || ratio === 1 || ratio === -1) {
-        ratio = randomInt(-4, 4);
-    }
-
-    const sequence = Array.from({ length: sequenceLength }, (_, index) => {
-        if (index === 0) return start;
-        return sequence[index - 1] * ratio;
-    });
-
-    const answer = sequence[sequenceLength - 1] * ratio;
-
-    return {
-        equation: sequence.join(", "),
-        answer: `${answer}`,
-        prompt: "Find the next number in the pattern:",
-    };
-}
-
-/**
- * Builds a cubic whose integer roots can be found by factoring.
- */
-function generatePolynomialEquation() {
-    const roots = [];
-    while (roots.length < 3) {
-        const candidate = randomInt(-7, 7);
-        if (!roots.includes(candidate)) {
-            roots.push(candidate);
-        }
-    }
-
-    roots.sort((first, second) => first - second);
-    const [r1, r2, r3] = roots;
-    const xSquaredCoefficient = -(r1 + r2 + r3);
-    const xCoefficient = r1 * r2 + r1 * r3 + r2 * r3;
-    const constantTerm = -(r1 * r2 * r3);
-
-    const x2Term = xSquaredCoefficient === 0 ? "" : xSquaredCoefficient > 0 ? ` + ${xSquaredCoefficient}x^2` : ` - ${Math.abs(xSquaredCoefficient)}x^2`;
-    const xTerm = xCoefficient === 0 ? "" : xCoefficient > 0 ? ` + ${xCoefficient}x` : ` - ${Math.abs(xCoefficient)}x`;
-    const constant = constantTerm === 0 ? "" : constantTerm > 0 ? ` + ${constantTerm}` : ` - ${Math.abs(constantTerm)}`;
-
-    const answer = roots.map((root) => `x = ${root}`).join(" or ");
-
-    return {
-        equation: `x^3${x2Term}${xTerm}${constant} = 0`,
         answer,
         prompt: "Solve for x:",
     };
@@ -544,6 +457,56 @@ async function sendDeveloperReminder() {
     } catch (error) {
         console.error("Failed to send developer reminder:", error);
     }
+}
+
+/**
+ * Automatically sends a haunting message to a random guild member at random intervals.
+ */
+async function scheduleAutoHaunt() {
+    if (!AUTO_HAUNT_ENABLED) return;
+
+    try {
+        const channel = await discordClient.channels.fetch(
+            CURSED_GENERAL_CHANNEL_ID
+        );
+        if (!channel) {
+            console.error("Cursed general channel not found for auto-haunt.");
+            return;
+        }
+
+        // Get all members from the guild
+        const guild = channel.guild;
+        const members = await guild.members.fetch();
+        const nonBotMembers = members.filter((m) => !m.user.bot);
+
+        if (nonBotMembers.size === 0) {
+            console.log("No members to haunt.");
+            return;
+        }
+
+        // Pick a random member
+        const randomMember = nonBotMembers.random();
+        const hauntingMessage =
+            HAUNTING_MESSAGES[randomInt(0, HAUNTING_MESSAGES.length - 1)];
+
+        await channel.send({
+            content: `<@${randomMember.id}> ${hauntingMessage}`,
+            flags: MessageFlags.Ephemeral,
+        });
+
+        console.log(
+            `Auto-haunted ${randomMember.user.tag}: "${hauntingMessage}"`
+        );
+    } catch (error) {
+        console.error("Failed to auto-haunt:", error);
+    }
+
+    // Schedule the next haunt at a random time
+    const nextHauntDelay = randomInt(
+        AUTO_HAUNT_MIN_INTERVAL_MS,
+        AUTO_HAUNT_MAX_INTERVAL_MS
+    );
+    setTimeout(scheduleAutoHaunt, nextHauntDelay);
 }
 
 // Reveals the answer only when the tagged user replies directly to their posted challenge
@@ -1115,6 +1078,55 @@ discordClient.on("interactionCreate", async (interaction) => {
             );
             await interaction.editReply({
                 content: `Added "${label}", but couldn't refresh the posted menu automatically \u2014 run /setup-roles to update it.`,
+            });
+        }
+        return;
+    }
+
+    if (interaction.commandName === "haunt") {
+        if (interaction.user.id !== SAY_COMMAND_USER_ID) {
+            await interaction.reply({
+                content: "You are not allowed to use this command.",
+                flags: MessageFlags.Ephemeral,
+            });
+            return;
+        }
+
+        const targetUser = interaction.options.getUser("target", true);
+        const customMessage = interaction.options.getString("message");
+        const hauntingMessage =
+            customMessage ||
+            HAUNTING_MESSAGES[randomInt(0, HAUNTING_MESSAGES.length - 1)];
+
+        try {
+            const channel = await discordClient.channels.fetch(
+                CURSED_GENERAL_CHANNEL_ID
+            );
+            if (!channel) {
+                await interaction.reply({
+                    content: "Cursed general channel not found.",
+                    flags: MessageFlags.Ephemeral,
+                });
+                return;
+            }
+
+            await channel.send({
+                content: `<@${targetUser.id}> ${hauntingMessage}`,
+                flags: MessageFlags.Ephemeral,
+            });
+
+            await interaction.reply({
+                content: `The shadows have whispered to ${targetUser.username}...`,
+                flags: MessageFlags.Ephemeral,
+            });
+            console.log(
+                `Sent haunting message to ${targetUser.tag}: "${hauntingMessage}"`
+            );
+        } catch (error) {
+            console.error("Failed to send haunting message:", error);
+            await interaction.reply({
+                content: "Failed to reach the cursed realm...",
+                flags: MessageFlags.Ephemeral,
             });
         }
         return;
