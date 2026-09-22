@@ -87,6 +87,7 @@ const HAUNTING_MESSAGES = [
 const AUTO_HAUNT_ENABLED = process.env.AUTO_HAUNT_ENABLED === "true";
 const AUTO_HAUNT_MIN_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours minimum
 const AUTO_HAUNT_MAX_INTERVAL_MS = 8 * 60 * 60 * 1000; // 8 hours maximum
+const AUTO_HAUNT_ROLE_ID = "441290984542699521"; // Regulars role
 
 // Role settings: all reaction roles (emoji, role ID, embed label, keywords) live in
 // custom-reaction-roles.json instead of here, to keep this file compact. Edit that file
@@ -460,7 +461,7 @@ async function sendDeveloperReminder() {
 }
 
 /**
- * Automatically sends a haunting message to a random guild member at random intervals.
+ * Automatically sends a haunting message to a random guild member with the Regulars role at random intervals.
  */
 async function scheduleAutoHaunt() {
     if (!AUTO_HAUNT_ENABLED) return;
@@ -477,25 +478,38 @@ async function scheduleAutoHaunt() {
         // Get all members from the guild
         const guild = channel.guild;
         const members = await guild.members.fetch();
-        const nonBotMembers = members.filter((m) => !m.user.bot);
+        
+        // Filter for non-bot members who have the Regulars role
+        const regularsWithRole = members.filter(
+            (m) => !m.user.bot && m.roles.cache.has(AUTO_HAUNT_ROLE_ID)
+        );
 
-        if (nonBotMembers.size === 0) {
-            console.log("No members to haunt.");
+        if (regularsWithRole.size === 0) {
+            console.log("No Regulars to haunt.");
             return;
         }
 
-        // Pick a random member
-        const randomMember = nonBotMembers.random();
+        // Pick a random member from the Regulars
+        const randomMember = regularsWithRole.random();
         const hauntingMessage =
             HAUNTING_MESSAGES[randomInt(0, HAUNTING_MESSAGES.length - 1)];
 
-        await channel.send({
-            content: `<@${randomMember.id}> ${hauntingMessage}`,
-            flags: MessageFlags.Ephemeral,
-        });
+        // Send as DM so only the target user sees it
+        try {
+            await randomMember.user.send(hauntingMessage);
+        } catch (dmError) {
+            // If DM fails, try sending in the channel as a fallback
+            console.warn(
+                `Could not DM ${randomMember.user.tag}, attempting channel send...`
+            );
+            await channel.send({
+                content: `<@${randomMember.id}> ${hauntingMessage}`,
+                flags: MessageFlags.Ephemeral,
+            });
+        }
 
         console.log(
-            `Auto-haunted ${randomMember.user.tag}: "${hauntingMessage}"`
+            `Auto-haunted Regular ${randomMember.user.tag}: "${hauntingMessage}"`
         );
     } catch (error) {
         console.error("Failed to auto-haunt:", error);
