@@ -326,65 +326,557 @@ discordClient.once("clientReady", async () => {
 });
 
 /**
- * Picks a random equation type so challenges alternate between a "solve for x"
- * quadratic and a "solve for x and y" system of equations.
+ * Generates a random math question: complex polynomial, quadratic factoring, number series, or function analysis.
  */
 function generateAlgebraEquation() {
-    return Math.random() < 0.5
-        ? generateFoilEquation()
-        : generateSystemEquation();
+    const questionType = randomInt(0, 3);
+    switch (questionType) {
+        case 0:
+            return generateComplexPolynomial();
+        case 1:
+            return generateFactoringQuadratic();
+        case 2:
+            return generateNumberSeries();
+        case 3:
+            return generateFunctionAnalysis();
+        default:
+            return generateComplexPolynomial();
+    }
 }
 
 /**
- * Builds a quadratic by FOILing two binomials, (x + p)(x + q), expanded to
- * x^2 + bx + c = 0. The two binomial roots (-p and -q) are the solutions for x.
+ * Generates a complex polynomial equation of degree 3 or 4 with integer coefficients.
+ * Returns an equation in the form ax^n + bx^(n-1) + ... = 0 with at least one integer root.
  */
-function generateFoilEquation() {
-    const p = randomNonZeroInt(-9, 9);
-    const q = randomNonZeroInt(-9, 9);
+function generateComplexPolynomial() {
+    const degree = randomInt(3, 4); // Degree 3 or 4
+    const root1 = randomNonZeroInt(-5, 5);
+    const root2 = randomNonZeroInt(-5, 5);
+    const root3 = randomNonZeroInt(-5, 5);
+    
+    let roots = [root1, root2, root3];
+    let coefficients;
 
-    const b = p + q; // Outer + Inner terms
-    const c = p * q; // First * Last term
+    if (degree === 4) {
+        const root4 = randomNonZeroInt(-5, 5);
+        roots.push(root4);
+        // Expand (x - root1)(x - root2)(x - root3)(x - root4)
+        coefficients = expandPolynomial([
+            [1, -root1],
+            [1, -root2],
+            [1, -root3],
+            [1, -root4],
+        ]);
+    } else {
+        // Expand (x - root1)(x - root2)(x - root3)
+        coefficients = expandPolynomial([
+            [1, -root1],
+            [1, -root2],
+            [1, -root3],
+        ]);
+    }
 
-    const bTerm = b === 0 ? "" : b > 0 ? ` + ${b}x` : ` - ${Math.abs(b)}x`;
-    const cTerm = c === 0 ? "" : c > 0 ? ` + ${c}` : ` - ${Math.abs(c)}`;
+    // Build equation string
+    let equationParts = [];
+    for (let i = 0; i < coefficients.length; i++) {
+        const coeff = coefficients[i];
+        const power = coefficients.length - 1 - i;
 
-    const roots = [...new Set([-p, -q])].sort((first, second) => first - second);
-    const answer = roots.map((root) => `x = ${root}`).join(" or ");
+        if (coeff === 0) continue;
+
+        let term = "";
+        if (equationParts.length > 0) {
+            term += coeff > 0 ? " + " : " - ";
+            term += Math.abs(coeff);
+        } else {
+            term += coeff;
+        }
+
+        if (power > 1) {
+            term += `x^${power}`;
+        } else if (power === 1) {
+            term += "x";
+        }
+
+        equationParts.push(term);
+    }
+
+    const equation = equationParts.join("") + " = 0";
+    const uniqueRoots = [...new Set(roots)].sort((a, b) => a - b);
+    const answer = uniqueRoots.map((root) => `x = ${root}`).join(" or ");
 
     return {
-        equation: `x^2${bTerm}${cTerm} = 0`,
+        equation,
         answer,
-        prompt: "Solve for x:",
+        prompt: "Find all integer roots:",
     };
 }
 
 /**
- * Builds a system of two linear equations in x and y with a single unique integer solution.
+ * Expands a product of linear polynomials.
+ * Each polynomial is represented as [coefficient, constant] for (coeff*x + constant).
  */
-function generateSystemEquation() {
-    const x = randomInt(-8, 8);
-    const y = randomInt(-8, 8);
+function expandPolynomial(polynomials) {
+    let result = [1]; // Start with the constant 1
 
-    let a1, b1, a2, b2;
-    do {
-        a1 = randomNonZeroInt(-6, 6);
-        b1 = randomNonZeroInt(-6, 6);
-        a2 = randomNonZeroInt(-6, 6);
-        b2 = randomNonZeroInt(-6, 6);
-    } while (a1 * b2 - a2 * b1 === 0); // Reject coefficients with no unique solution
+    for (const [coeff, constant] of polynomials) {
+        const newResult = new Array(result.length + 1).fill(0);
+        for (let i = 0; i < result.length; i++) {
+            newResult[i] += result[i] * coeff; // Multiply by coeff*x
+            newResult[i + 1] += result[i] * constant; // Multiply by constant
+        }
+        result = newResult;
+    }
 
-    const c1 = a1 * x + b1 * y;
-    const c2 = a2 * x + b2 * y;
+    return result;
+}
 
-    const line1 = `${a1}x ${b1 >= 0 ? "+" : "-"} ${Math.abs(b1)}y = ${c1}`;
-    const line2 = `${a2}x ${b2 >= 0 ? "+" : "-"} ${Math.abs(b2)}y = ${c2}`;
+/**
+ * Generates a quadratic equation in the form ax^2 + bx + c = 0 that factors nicely.
+ * The user must factor it into the form (px + q)(rx + s) = 0.
+ */
+function generateFactoringQuadratic() {
+    // Generate two linear factors: (ax + b)(cx + d)
+    const a = randomNonZeroInt(-3, 3);
+    const b = randomNonZeroInt(-5, 5);
+    const c = randomNonZeroInt(-3, 3);
+    const d = randomNonZeroInt(-5, 5);
+
+    // Expand (ax + b)(cx + d) = acx^2 + (ad + bc)x + bd
+    const A = a * c;
+    const B = a * d + b * c;
+    const C = b * d;
+
+    // Format the equation
+    let equationParts = [];
+
+    if (A !== 0) {
+        equationParts.push(A === 1 ? "x^2" : A === -1 ? "-x^2" : `${A}x^2`);
+    }
+
+    if (B !== 0) {
+        const sign = B > 0 ? " + " : " - ";
+        equationParts.push(sign + (Math.abs(B) === 1 ? "x" : `${Math.abs(B)}x`));
+    }
+
+    if (C !== 0) {
+        const sign = C > 0 ? " + " : " - ";
+        equationParts.push(sign + Math.abs(C));
+    }
+
+    const equation = equationParts.join("") + " = 0";
+
+    // Format the factored form for the answer
+    const factor1 = a === 1 ? `x + ${b}` : a === -1 ? `-x + ${b}` : `${a}x + ${b}`;
+    const factor2 = c === 1 ? `x + ${d}` : c === -1 ? `-x + ${d}` : `${c}x + ${d}`;
+    const factored = `(${factor1})(${factor2})`;
+
+    // Calculate the roots for verification
+    const root1 = -b / a;
+    const root2 = -d / c;
 
     return {
-        equation: `${line1}
-${line2}`,
-        answer: `x = ${x}, y = ${y}`,
-        prompt: "Solve for x and y:",
+        equation,
+        answer: factored,
+        prompt: "Factor the quadratic:",
+    };
+}
+
+/**
+ * Generates a challenging number series problem with various patterns.
+ * Patterns include: polynomial sequences, Fibonacci-like, geometric with twist, etc.
+ */
+function generateNumberSeries() {
+    const seriesType = randomInt(0, 4);
+    let series, nextNumber, pattern;
+
+    switch (seriesType) {
+        case 0:
+            // Quadratic sequence: differences of differences are constant
+            return generateQuadraticSequence();
+        case 1:
+            // Cubic sequence: third differences are constant
+            return generateCubicSequence();
+        case 2:
+            // Fibonacci-like with multiplier: a(n) = a(n-1) + 2*a(n-2)
+            return generateFibonacciVariant();
+        case 3:
+            // Geometric sequence with arithmetic twist
+            return generateGeometricWithTwist();
+        case 4:
+            // Prime-based or factorial-based sequence
+            return generateAdvancedSequence();
+        default:
+            return generateQuadraticSequence();
+    }
+}
+
+/**
+ * Generates a quadratic sequence (second differences constant).
+ * Example: 2, 5, 10, 17, 26, ? → differences: 3, 5, 7, 9 (constant diff of 2)
+ */
+function generateQuadraticSequence() {
+    const a = randomNonZeroInt(-3, 3); // Coefficient of n^2
+    const b = randomNonZeroInt(-5, 5); // Coefficient of n
+    const c = randomNonZeroInt(-5, 5); // Constant
+
+    const series = [];
+    for (let n = 1; n <= 6; n++) {
+        series.push(a * n * n + b * n + c);
+    }
+
+    const answer = series[5];
+    const displaySeries = series.slice(0, 5).join(", ");
+
+    return {
+        equation: displaySeries + ", ?",
+        answer: String(answer),
+        prompt: "Find the next number in the sequence:",
+    };
+}
+
+/**
+ * Generates a cubic sequence (third differences constant).
+ * Much harder than quadratic.
+ */
+function generateCubicSequence() {
+    const a = randomNonZeroInt(-2, 2); // Coefficient of n^3
+    const b = randomNonZeroInt(-3, 3); // Coefficient of n^2
+    const c = randomNonZeroInt(-3, 3); // Coefficient of n
+    const d = randomNonZeroInt(-5, 5); // Constant
+
+    const series = [];
+    for (let n = 1; n <= 6; n++) {
+        series.push(a * n * n * n + b * n * n + c * n + d);
+    }
+
+    const answer = series[5];
+    const displaySeries = series.slice(0, 5).join(", ");
+
+    return {
+        equation: displaySeries + ", ?",
+        answer: String(answer),
+        prompt: "Find the next number in the sequence:",
+    };
+}
+
+/**
+ * Generates a Fibonacci-like sequence with a twist.
+ * a(n) = a(n-1) + k*a(n-2) where k is a random multiplier.
+ */
+function generateFibonacciVariant() {
+    const k = randomNonZeroInt(-3, 3);
+    const start1 = randomInt(1, 5);
+    const start2 = randomInt(1, 5);
+
+    const series = [start1, start2];
+    for (let i = 2; i < 6; i++) {
+        series.push(series[i - 1] + k * series[i - 2]);
+    }
+
+    const answer = series[5];
+    const displaySeries = series.slice(0, 5).join(", ");
+
+    return {
+        equation: displaySeries + ", ?",
+        answer: String(answer),
+        prompt: "Find the next number in the sequence:",
+    };
+}
+
+/**
+ * Generates a geometric sequence with an arithmetic twist.
+ * Example: multiply by r, then add/subtract a constant each step.
+ */
+function generateGeometricWithTwist() {
+    const r = randomNonZeroInt(-3, 3); // Multiplier
+    const twist = randomNonZeroInt(-5, 5); // Arithmetic twist
+    const start = randomInt(1, 3);
+
+    const series = [start];
+    for (let i = 1; i < 6; i++) {
+        series.push(series[i - 1] * r + twist);
+    }
+
+    const answer = series[5];
+    const displaySeries = series.slice(0, 5).join(", ");
+
+    return {
+        equation: displaySeries + ", ?",
+        answer: String(answer),
+        prompt: "Find the next number in the sequence:",
+    };
+}
+
+/**
+ * Generates an advanced sequence based on primes, factorials, or combined patterns.
+ */
+function generateAdvancedSequence() {
+    const advancedType = randomInt(0, 2);
+
+    if (advancedType === 0) {
+        // Factorial-based: n! + n, n! - n, etc.
+        const factorials = [1, 2, 6, 24, 120, 720];
+        const operation = randomInt(0, 2);
+        const series = factorials.map((f, i) => {
+            const n = i + 1;
+            if (operation === 0) return f + n;
+            if (operation === 1) return f - n;
+            return f * n;
+        });
+
+        const answer = series[5];
+        const displaySeries = series.slice(0, 5).join(", ");
+
+        return {
+            equation: displaySeries + ", ?",
+            answer: String(answer),
+            prompt: "Find the next number in the sequence:",
+        };
+    } else if (advancedType === 1) {
+        // Powers with offset: 2^n + n^2, 3^n - n, etc.
+        const base = randomInt(2, 4);
+        const operation = randomInt(0, 1);
+        const series = [];
+        for (let n = 1; n <= 6; n++) {
+            if (operation === 0) {
+                series.push(Math.pow(base, n) + n * n);
+            } else {
+                series.push(Math.pow(base, n) - n);
+            }
+        }
+
+        const answer = series[5];
+        const displaySeries = series.slice(0, 5).join(", ");
+
+        return {
+            equation: displaySeries + ", ?",
+            answer: String(answer),
+            prompt: "Find the next number in the sequence:",
+        };
+    } else {
+        // Alternating pattern with increasing complexity
+        const series = [];
+        for (let n = 1; n <= 6; n++) {
+            if (n % 2 === 1) {
+                series.push(n * n * n); // Odd positions: cubes
+            } else {
+                series.push(n * (n + 1)); // Even positions: n(n+1)
+            }
+        }
+
+        const answer = series[5];
+        const displaySeries = series.slice(0, 5).join(", ");
+
+        return {
+            equation: displaySeries + ", ?",
+            answer: String(answer),
+            prompt: "Find the next number in the sequence:",
+        };
+    }
+}
+
+/**
+ * Generates a function analysis problem.
+ * Types: find domain, find range, find critical points, find asymptotes, etc.
+ */
+function generateFunctionAnalysis() {
+    const analysisType = randomInt(0, 4);
+
+    switch (analysisType) {
+        case 0:
+            return generateDomainProblem();
+        case 1:
+            return generateRangeProblem();
+        case 2:
+            return generateCriticalPointsProblem();
+        case 3:
+            return generateAsymptoteProblem();
+        case 4:
+            return generateCompositionProblem();
+        default:
+            return generateDomainProblem();
+    }
+}
+
+/**
+ * Find the domain of a function (where it's defined).
+ */
+function generateDomainProblem() {
+    const domainType = randomInt(0, 3);
+    let func, answer, explanation;
+
+    if (domainType === 0) {
+        // Rational function: f(x) = 1/(x - a)
+        const a = randomNonZeroInt(-5, 5);
+        func = `f(x) = 1/(x - ${a})`;
+        answer = `x ≠ ${a}` + (a > 0 ? ` or (-∞, ${a}) ∪ (${a}, ∞)` : ` or (-∞, ${a}) ∪ (${a}, ∞)`);
+    } else if (domainType === 1) {
+        // Square root: f(x) = √(x - a)
+        const a = randomNonZeroInt(-5, 5);
+        func = `f(x) = √(x - ${a})`;
+        answer = `x ≥ ${a}` + (a > 0 ? ` or [${a}, ∞)` : ` or [${a}, ∞)`);
+    } else if (domainType === 2) {
+        // Rational with quadratic denominator: f(x) = 1/(x² - a)
+        const a = randomInt(1, 5);
+        const sqrtA = Math.sqrt(a);
+        func = `f(x) = 1/(x² - ${a})`;
+        answer = `x ≠ ±${sqrtA}` + (Number.isInteger(sqrtA) ? ` or ℝ \\ {-${sqrtA}, ${sqrtA}}` : "");
+    } else {
+        // Logarithm: f(x) = ln(x - a)
+        const a = randomNonZeroInt(-5, 5);
+        func = `f(x) = ln(x - ${a})`;
+        answer = `x > ${a}` + (a > 0 ? ` or (${a}, ∞)` : ` or (${a}, ∞)`);
+    }
+
+    return {
+        equation: func,
+        answer: answer,
+        prompt: "Find the domain:",
+    };
+}
+
+/**
+ * Find the range of a function (all possible output values).
+ */
+function generateRangeProblem() {
+    const rangeType = randomInt(0, 2);
+    let func, answer;
+
+    if (rangeType === 0) {
+        // Quadratic: f(x) = a(x - h)² + k (vertex form)
+        const a = randomNonZeroInt(-3, 3);
+        const h = randomNonZeroInt(-3, 3);
+        const k = randomNonZeroInt(-5, 5);
+        const sign = a > 0 ? "≥" : "≤";
+        func = `f(x) = ${a}(x - ${h})² + ${k}`;
+        answer = `y ${sign} ${k}` + (a > 0 ? ` or [${k}, ∞)` : ` or (-∞, ${k}]`);
+    } else if (rangeType === 1) {
+        // Rational: f(x) = (ax + b)/(x + c) has horizontal asymptote
+        const a = randomNonZeroInt(-3, 3);
+        const b = randomNonZeroInt(-5, 5);
+        const c = randomNonZeroInt(-5, 5);
+        func = `f(x) = (${a}x + ${b})/(x + ${c})`;
+        answer = `y ≠ ${a}` + ` or ℝ \\ {${a}}`;
+    } else {
+        // Exponential: f(x) = a·b^x + c
+        const a = randomInt(1, 3);
+        const b = randomInt(2, 4);
+        const c = randomNonZeroInt(-3, 3);
+        const sign = c > 0 ? ">" : "<";
+        func = `f(x) = ${a}·${b}^x + ${c}`;
+        answer = `y ${sign} ${c}` + (c > 0 ? ` or (${c}, ∞)` : ` or (-∞, ${c})`);
+    }
+
+    return {
+        equation: func,
+        answer: answer,
+        prompt: "Find the range:",
+    };
+}
+
+/**
+ * Find critical points (where derivative = 0 or undefined).
+ */
+function generateCriticalPointsProblem() {
+    const a = randomNonZeroInt(-3, 3);
+    const b = randomNonZeroInt(-5, 5);
+    const c = randomNonZeroInt(-5, 5);
+
+    // f(x) = ax³ + bx² + cx
+    // f'(x) = 3ax² + 2bx + c
+    // Critical points where f'(x) = 0
+
+    const discriminant = 4 * b * b - 12 * a * c;
+    let answer;
+
+    if (discriminant < 0) {
+        answer = "No real critical points";
+    } else if (discriminant === 0) {
+        const x = (-2 * b) / (6 * a);
+        answer = `x = ${x}`;
+    } else {
+        const sqrtDisc = Math.sqrt(discriminant);
+        const x1 = ((-2 * b + sqrtDisc) / (6 * a)).toFixed(2);
+        const x2 = ((-2 * b - sqrtDisc) / (6 * a)).toFixed(2);
+        answer = `x = ${x1}, x = ${x2}`;
+    }
+
+    const func = `f(x) = ${a}x³ + ${b}x² + ${c}x`;
+
+    return {
+        equation: func,
+        answer: answer,
+        prompt: "Find the critical points:",
+    };
+}
+
+/**
+ * Find vertical and horizontal asymptotes.
+ */
+function generateAsymptoteProblem() {
+    const asymptoteType = randomInt(0, 1);
+    let func, answer;
+
+    if (asymptoteType === 0) {
+        // Vertical asymptotes from denominator zeros
+        const a = randomNonZeroInt(-3, 3);
+        const b = randomNonZeroInt(-3, 3);
+        const c = randomNonZeroInt(-5, 5);
+        func = `f(x) = (${a}x + ${b})/((x - ${c})(x + ${c}))`;
+        answer = `Vertical: x = ${c}, x = -${c}; Horizontal: y = 0`;
+    } else {
+        // Horizontal asymptotes from degree comparison
+        const a = randomNonZeroInt(-3, 3);
+        const b = randomNonZeroInt(-3, 3);
+        const c = randomNonZeroInt(1, 3);
+        const d = randomNonZeroInt(1, 3);
+        func = `f(x) = (${a}x² + ${b}x)/(${c}x² + ${d})`;
+        const horizontalAsymptote = (a / c).toFixed(2);
+        answer = `Vertical: x = 0; Horizontal: y = ${horizontalAsymptote}`;
+    }
+
+    return {
+        equation: func,
+        answer: answer,
+        prompt: "Find the asymptotes:",
+    };
+}
+
+/**
+ * Find the composition of two functions.
+ */
+function generateCompositionProblem() {
+    const a = randomNonZeroInt(-3, 3);
+    const b = randomNonZeroInt(-5, 5);
+    const c = randomNonZeroInt(-3, 3);
+    const d = randomNonZeroInt(-5, 5);
+
+    // f(x) = ax + b
+    // g(x) = cx + d
+    // Find f(g(x)) or g(f(x))
+
+    const compositionType = randomInt(0, 1);
+    let func, answer;
+
+    if (compositionType === 0) {
+        // f(g(x))
+        const coeff = a * c;
+        const constant = a * d + b;
+        func = `f(x) = ${a}x + ${b}, g(x) = ${c}x + ${d}. Find f(g(x)):`;
+        answer = `f(g(x)) = ${coeff}x + ${constant}`;
+    } else {
+        // g(f(x))
+        const coeff = c * a;
+        const constant = c * b + d;
+        func = `f(x) = ${a}x + ${b}, g(x) = ${c}x + ${d}. Find g(f(x)):`;
+        answer = `g(f(x)) = ${coeff}x + ${constant}`;
+    }
+
+    return {
+        equation: func,
+        answer: answer,
+        prompt: "Solve the function composition:",
     };
 }
 
