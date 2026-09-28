@@ -26,16 +26,23 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 const DESTINATION_CHANNEL_ID = process.env.DESTINATION_CHANNEL_ID; // Where BlueSky cross-posts are sent
+const CHEAPASSGAMER_THREAD_ID = process.env.CHEAPASSGAMER_THREAD_ID; // Thread for cheapassgamer.com posts
 
 // BlueSky login used to read the feed (needs an app password, not the main account password)
 const BLUESKY_HANDLE = process.env.BLUESKY_HANDLE;
 const BLUESKY_APP_PASSWORD = process.env.BLUESKY_APP_PASSWORD;
 
-// The BlueSky account whose posts get mirrored to Discord
-const TARGET_BLUESKY_USER = process.env.TARGET_BLUESKY_USER;
+// BlueSky accounts whose posts get mirrored to Discord
+const TARGET_BLUESKY_USERS = [
+    process.env.TARGET_BLUESKY_USER,
+    "cheapassgamer.com",
+];
 
 // How often to poll BlueSky for new posts, in milliseconds
 const POLL_INTERVAL_MS = 60000;
+
+// Track the last processed URI for each BlueSky user
+const lastProcessedUriMap = {};
 
 // Flavor text shown before the role pings on a cross-posted BlueSky message; one is picked at random
 const ROLE_PING_MESSAGES = [
@@ -190,9 +197,6 @@ const atpAgent = new AtpAgent({
     service: "https://bsky.social",
 });
 
-// URI of the most recently posted item, used to detect new posts and avoid duplicates
-let lastProcessedUri = null;
-
 // Posted math challenges awaiting a reply: message ID -> { answer, userId }
 const activeMathChallenges = new Map();
 
@@ -305,6 +309,7 @@ discordClient.once("clientReady", async () => {
             password: BLUESKY_APP_PASSWORD,
         });
         console.log("Successfully logged into BlueSky!");
+        console.log(`Watching BlueSky users: ${TARGET_BLUESKY_USERS.join(", ")}`);
         setInterval(checkBlueSkyPosts, POLL_INTERVAL_MS);
         await checkBlueSkyPosts(); // Run once immediately instead of waiting for the first interval
     } catch (error) {
@@ -1029,7 +1034,7 @@ discordClient.on("messageCreate", async (message) => {
 });
 
 /**
- * Polls the target BlueSky account for new posts and forwards any that
+ * Polls all target BlueSky accounts for new posts and forwards any that
  * haven't been seen yet to the configured Discord channel.
  */
 async function checkBlueSkyPosts() {
@@ -1040,40 +1045,58 @@ async function checkBlueSkyPosts() {
             return;
         }
 
-        // limit=5 catches quick bursts of posts; "posts_no_replies" skips replies to others
-        const response = await atpAgent.getAuthorFeed({
-            actor: TARGET_BLUESKY_USER,
-            limit: 5,
-            filter: "posts_no_replies",
-        });
+        // Check each BlueSky user
+        for (const user of TARGET_BLUESKY_USERS) {
+            try {
+                // limit=5 catches quick bursts of posts; "posts_no_replies" skips replies to others
+                const response = await atpAgent.getAuthorFeed({
+                    actor: user,
+                    limit: 5,
+                    filter: "posts_no_replies",
+                });
 
-        const feed = response.data.feed;
-        if (!feed || feed.length === 0) return;
+                const feed = response.data.feed;
+                if (!feed || feed.length === 0) continue;
 
-        // First run: just record the current newest post so we don't spam old content
-        if (lastProcessedUri === null) {
-            lastProcessedUri = feed[0].post.uri;
-            console.log(`Baseline established. Watching ${TARGET_BLUESKY_USER}...`);
-            return;
-        }
+                // Initialize tracking for this user if first run
+                if (!lastProcessedUriMap[user]) {
+                    lastProcessedUriMap[user] = feed[0].post.uri;
+                    console.log(`Baseline established. Watching ${user}...`);
+                    continue;
+                }
 
-        // Feed is newest-first; collect everything up to the last post we already handled
-        const newPosts = [];
-        for (const feedView of feed) {
-            if (feedView.post.uri === lastProcessedUri) break;
-            newPosts.push(feedView);
-        }
+                // Feed is newest-first; collect everything up to the last post we already handled
+                const newPosts = [];
+                for (const feedView of feed) {
+                    if (feedView.post.uri === lastProcessedUriMap[user]) break;
+                    newPosts.push(feedView);
+                }
 
-        if (newPosts.length === 0) return;
+                if (newPosts.length === 0) continue;
 
-        lastProcessedUri = feed[0].post.uri;
-        newPosts.reverse(); // Send oldest-to-newest so Discord message order matches posting order
+                lastProcessedUriMap[user] = feed[0].post.uri;
+                newPosts.reverse(); // Send oldest-to-newest so Discord message order matches posting order
 
-        for (const feedView of newPosts) {
-            await postToDiscord(channel, feedView.post);
+                // Route cheapassgamer.com posts to a thread, others to the main channel
+                let targetChannel = channel;
+                if (user === "cheapassgamer.com" && CHEAPASSGAMER_THREAD_ID) {
+                    try {
+                        targetChannel = await discordClient.channels.fetch(CHEAPASSGAMER_THREAD_ID);
+                    } catch (threadError) {
+                        console.error(`Could not fetch cheapassgamer thread (${CHEAPASSGAMER_THREAD_ID}):`, threadError);
+                        targetChannel = channel; // Fallback to main channel
+                    }
+                }
+
+                for (const feedView of newPosts) {
+                    await postToDiscord(targetChannel, feedView.post);
+                }
+            } catch (userError) {
+                console.error(`Error checking BlueSky feed for ${user}:`, userError);
+            }
         }
     } catch (error) {
-        console.error("Error checking BlueSky feed:", error);
+        console.error("Error checking BlueSky feeds:", error);
     }
 }
 
