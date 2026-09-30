@@ -1101,18 +1101,27 @@ async function scheduleAutoHaunt() {
         const guild = channel.guild;
         const members = await guild.members.fetch();
         
-        // Filter for non-bot members who have the Regulars role
-        const regularsWithRole = members.filter(
-            (m) => !m.user.bot && m.roles.cache.has(AUTO_HAUNT_ROLE_ID)
-        );
+        // Calculate the cutoff date (1 month ago)
+        const oneMonthAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+        
+        // Filter for non-bot members who have the Regulars role AND have been active in the past month
+        const activeRegulars = members.filter((m) => {
+            if (m.user.bot) return false;
+            if (!m.roles.cache.has(AUTO_HAUNT_ROLE_ID)) return false;
+            
+            // Check if member has been active in the past month
+            // lastMessage is the timestamp of their last message in any channel the bot can see
+            const lastMessageTime = m.lastMessageTimestamp || 0;
+            return lastMessageTime > oneMonthAgo;
+        });
 
-        if (regularsWithRole.size === 0) {
-            console.log("No Regulars to haunt.");
+        if (activeRegulars.size === 0) {
+            console.log("No active Regulars to haunt (none active in the past month).");
             return;
         }
 
-        // Pick a random member from the Regulars
-        const randomMember = regularsWithRole.random();
+        // Pick a random member from the active Regulars
+        const randomMember = activeRegulars.random();
         const hauntingMessage =
             HAUNTING_MESSAGES[randomInt(0, HAUNTING_MESSAGES.length - 1)];
 
@@ -1147,97 +1156,73 @@ async function scheduleAutoHaunt() {
 
 /**
  * Generates an explanation and worked solution based on the problem type.
+ * Uses the actual problem the user failed on as the worked example.
  */
 function getExplanation(prompt, problem, answer) {
     if (prompt.includes("Find all integer roots")) {
-        return `**How to solve:**
-1. Set the equation equal to zero (already done)
+        return `1. Set the equation equal to zero (already done)
 2. Factor the polynomial into linear factors
 3. Use the zero product property: if (x - a)(x - b)(x - c) = 0, then x = a, b, or c
 4. The roots are the values that make each factor zero
 
-**Example:** For x³ - 6x² + 11x - 6 = 0
-- Factor: (x - 1)(x - 2)(x - 3) = 0
-- Roots: x = 1, x = 2, x = 3`;
+**Your problem:** ${problem}
+**Solution:** The correct answer is **${answer}**`;
     } else if (prompt.includes("Factor the quadratic")) {
-        return `**How to solve:**
-1. Look for two numbers that multiply to give 'ac' and add to give 'b'
+        return `1. Look for two numbers that multiply to give 'ac' and add to give 'b'
 2. Use those numbers to split the middle term
 3. Factor by grouping
 4. Write as (px + q)(rx + s)
 
-**Example:** For 2x² + 7x + 3 = 0
-- a = 2, b = 7, c = 3
-- ac = 6, need two numbers that multiply to 6 and add to 7: 6 and 1
-- 2x² + 6x + x + 3 = 2x(x + 3) + 1(x + 3) = (2x + 1)(x + 3)
-- Answer: (2x + 1)(x + 3)`;
+**Your problem:** ${problem}
+**Solution:** The correct answer is **${answer}**`;
     } else if (prompt.includes("Find the next number in the sequence")) {
-        return `**How to solve:**
-1. Find the differences between consecutive terms
+        return `1. Find the differences between consecutive terms
 2. If differences are constant, it's arithmetic
 3. If second differences are constant, it's quadratic
 4. If third differences are constant, it's cubic
 5. Look for patterns like Fibonacci, geometric, or factorial-based sequences
 
-**Example:** For 2, 5, 10, 17, 26, ?
-- First differences: 3, 5, 7, 9 (increasing by 2)
-- Second differences: 2, 2, 2 (constant!)
-- Next first difference: 9 + 2 = 11
-- Next term: 26 + 11 = 37`;
+**Your problem:** ${problem}
+**Solution:** The correct answer is **${answer}**`;
     } else if (prompt.includes("Find the domain")) {
-        return `**How to solve:**
-1. Identify restrictions: denominators ≠ 0, square roots ≥ 0, logarithms > 0
+        return `1. Identify restrictions: denominators ≠ 0, square roots ≥ 0, logarithms > 0
 2. For rational functions: exclude values that make the denominator zero
 3. For square roots: the expression inside must be ≥ 0
 4. For logarithms: the argument must be > 0
 
-**Example:** For f(x) = 1/(x - 3)
-- The denominator cannot be zero
-- x - 3 ≠ 0, so x ≠ 3
-- Domain: all real numbers except 3, or (-∞, 3) ∪ (3, ∞)`;
+**Your problem:** ${problem}
+**Solution:** The correct answer is **${answer}**`;
     } else if (prompt.includes("Find the range")) {
-        return `**How to solve:**
-1. Determine what y-values are actually achievable
+        return `1. Determine what y-values are actually achievable
 2. For quadratics: find the vertex; if a > 0, range is [k, ∞); if a < 0, range is (-∞, k]
 3. For rational functions: find horizontal asymptotes
 4. For exponentials: they approach but never reach the asymptote
 
-**Example:** For f(x) = 2(x - 3)² + 5
-- Vertex form: a = 2 > 0, so parabola opens upward
-- Vertex at (3, 5), which is the minimum
-- Range: [5, ∞)`;
+**Your problem:** ${problem}
+**Solution:** The correct answer is **${answer}**`;
     } else if (prompt.includes("Find the critical points")) {
-        return `**How to solve:**
-1. Take the derivative f'(x)
+        return `1. Take the derivative f'(x)
 2. Set f'(x) = 0 and solve for x
 3. These are the critical points (local maxima/minima)
 
-**Example:** For f(x) = x³ - 3x² + 2
-- f'(x) = 3x² - 6x
-- Set 3x² - 6x = 0: 3x(x - 2) = 0
-- Critical points: x = 0 and x = 2`;
+**Your problem:** ${problem}
+**Solution:** The correct answer is **${answer}**`;
     } else if (prompt.includes("Find the asymptotes")) {
-        return `**How to solve:**
-1. **Vertical asymptotes:** Set denominator = 0
+        return `1. **Vertical asymptotes:** Set denominator = 0
 2. **Horizontal asymptotes:** Compare degrees of numerator and denominator
    - If degree of numerator < degree of denominator: y = 0
    - If degrees are equal: y = (leading coefficient of numerator)/(leading coefficient of denominator)
    - If degree of numerator > degree of denominator: no horizontal asymptote
 
-**Example:** For f(x) = (2x + 1)/(x² - 4)
-- Vertical: x² - 4 = 0 → x = ±2
-- Horizontal: degree of numerator (1) < degree of denominator (2) → y = 0`;
+**Your problem:** ${problem}
+**Solution:** The correct answer is **${answer}**`;
     } else if (prompt.includes("function composition")) {
-        return `**How to solve:**
-1. For f(g(x)): substitute the entire g(x) function into f
+        return `1. For f(g(x)): substitute the entire g(x) function into f
 2. Replace every x in f with the g(x) expression
 3. Simplify
 
-**Example:** For f(x) = 3x + 2, g(x) = -x + 4, find f(g(x))
-- f(g(x)) = f(-x + 4)
-- = 3(-x + 4) + 2
-- = -3x + 12 + 2
-- = -3x + 14`;
+**Your problem:** ${problem}
+**Solution:** The correct answer is **${answer}**`;
     }
     
     return null;
@@ -1251,6 +1236,26 @@ discordClient.on("messageCreate", async (message) => {
     // Check if this is a reply to a math challenge
     const mathChallenge = activeMathChallenges.get(challengeMessageId);
     const mathProblem = problemsByMessageId.get(challengeMessageId);
+    
+    // Check if this is a reply to a Spanish quiz question
+    const spanishChallenge = activeSpanishChallenges.get(challengeMessageId);
+    const spanishQuestion = spanishQuestionsByMessageId.get(challengeMessageId);
+    
+    // If it's a reply to a challenge but we don't have the data, the bot dozed off
+    if (!mathChallenge && !spanishChallenge && !mathProblem && !spanishQuestion) {
+        // Check if the referenced message exists and looks like it could be a challenge
+        try {
+            const referencedMessage = await message.channel.messages.fetch(challengeMessageId);
+            // If we found the message but don't have it in our database, the bot must have restarted
+            if (referencedMessage && (referencedMessage.author.id === message.client.user.id)) {
+                await message.reply("nyaa... oop, i dozed off. ask another question.");
+                return;
+            }
+        } catch (error) {
+            // Message not found or other error, just return
+            return;
+        }
+    }
     
     if (mathChallenge && mathProblem) {
         if (mathChallenge.userId && message.author.id !== mathChallenge.userId) return;
@@ -1273,17 +1278,13 @@ discordClient.on("messageCreate", async (message) => {
             // Add explanation and worked solution based on problem type
             const explanation = getExplanation(mathProblem.prompt, mathProblem.problem, mathChallenge.answer);
             if (explanation) {
-                response += `\n\n${explanation}`;
+                response += `\n\n**How to solve this problem:**\n${explanation}`;
             }
         }
 
         await message.reply(response);
         return;
     }
-
-    // Check if this is a reply to a Spanish quiz question
-    const spanishChallenge = activeSpanishChallenges.get(challengeMessageId);
-    const spanishQuestion = spanishQuestionsByMessageId.get(challengeMessageId);
     
     if (spanishChallenge && spanishQuestion) {
         activeSpanishChallenges.delete(challengeMessageId);
@@ -1299,7 +1300,22 @@ discordClient.on("messageCreate", async (message) => {
         const userAnswer = message.content.trim().toLowerCase();
         const correctAnswer = spanishChallenge.answer.toLowerCase();
         
-        if (userAnswer === correctAnswer) {
+        // Check if answer is correct (either full text or letter choice)
+        let isCorrect = userAnswer === correctAnswer;
+        
+        // Also check if user answered with a letter (A, B, C, D)
+        if (!isCorrect) {
+            const letterMatch = userAnswer.match(/[a-d]/);
+            if (letterMatch) {
+                const letterIndex = letterMatch[0].charCodeAt(0) - 97; // Convert a/b/c/d to 0/1/2/3
+                const answerByLetter = spanishQuestion.options[letterIndex]?.toLowerCase();
+                if (answerByLetter === correctAnswer) {
+                    isCorrect = true;
+                }
+            }
+        }
+        
+        if (isCorrect) {
             response += `\n✅ **Correct!**`;
         } else {
             response += `\n❌ **Incorrect.** The correct answer was: ${spanishChallenge.answer}`;
