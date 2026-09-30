@@ -68,7 +68,7 @@ const ROLE_PING_MESSAGES = [
     "neko neko beeeeeeeeam",
     "do u mind i am grooming",
     "FOCUS, M!!!",
-    "You were excited for this deal until you noticed you only have one rupee in your pocket..."
+    "you were excited for this deal until you noticed you only have one rupee in your pocket..."
 ];
 
 // Only this user may run /say
@@ -1145,6 +1145,104 @@ async function scheduleAutoHaunt() {
     setTimeout(scheduleAutoHaunt, nextHauntDelay);
 }
 
+/**
+ * Generates an explanation and worked solution based on the problem type.
+ */
+function getExplanation(prompt, problem, answer) {
+    if (prompt.includes("Find all integer roots")) {
+        return `**How to solve:**
+1. Set the equation equal to zero (already done)
+2. Factor the polynomial into linear factors
+3. Use the zero product property: if (x - a)(x - b)(x - c) = 0, then x = a, b, or c
+4. The roots are the values that make each factor zero
+
+**Example:** For x³ - 6x² + 11x - 6 = 0
+- Factor: (x - 1)(x - 2)(x - 3) = 0
+- Roots: x = 1, x = 2, x = 3`;
+    } else if (prompt.includes("Factor the quadratic")) {
+        return `**How to solve:**
+1. Look for two numbers that multiply to give 'ac' and add to give 'b'
+2. Use those numbers to split the middle term
+3. Factor by grouping
+4. Write as (px + q)(rx + s)
+
+**Example:** For 2x² + 7x + 3 = 0
+- a = 2, b = 7, c = 3
+- ac = 6, need two numbers that multiply to 6 and add to 7: 6 and 1
+- 2x² + 6x + x + 3 = 2x(x + 3) + 1(x + 3) = (2x + 1)(x + 3)
+- Answer: (2x + 1)(x + 3)`;
+    } else if (prompt.includes("Find the next number in the sequence")) {
+        return `**How to solve:**
+1. Find the differences between consecutive terms
+2. If differences are constant, it's arithmetic
+3. If second differences are constant, it's quadratic
+4. If third differences are constant, it's cubic
+5. Look for patterns like Fibonacci, geometric, or factorial-based sequences
+
+**Example:** For 2, 5, 10, 17, 26, ?
+- First differences: 3, 5, 7, 9 (increasing by 2)
+- Second differences: 2, 2, 2 (constant!)
+- Next first difference: 9 + 2 = 11
+- Next term: 26 + 11 = 37`;
+    } else if (prompt.includes("Find the domain")) {
+        return `**How to solve:**
+1. Identify restrictions: denominators ≠ 0, square roots ≥ 0, logarithms > 0
+2. For rational functions: exclude values that make the denominator zero
+3. For square roots: the expression inside must be ≥ 0
+4. For logarithms: the argument must be > 0
+
+**Example:** For f(x) = 1/(x - 3)
+- The denominator cannot be zero
+- x - 3 ≠ 0, so x ≠ 3
+- Domain: all real numbers except 3, or (-∞, 3) ∪ (3, ∞)`;
+    } else if (prompt.includes("Find the range")) {
+        return `**How to solve:**
+1. Determine what y-values are actually achievable
+2. For quadratics: find the vertex; if a > 0, range is [k, ∞); if a < 0, range is (-∞, k]
+3. For rational functions: find horizontal asymptotes
+4. For exponentials: they approach but never reach the asymptote
+
+**Example:** For f(x) = 2(x - 3)² + 5
+- Vertex form: a = 2 > 0, so parabola opens upward
+- Vertex at (3, 5), which is the minimum
+- Range: [5, ∞)`;
+    } else if (prompt.includes("Find the critical points")) {
+        return `**How to solve:**
+1. Take the derivative f'(x)
+2. Set f'(x) = 0 and solve for x
+3. These are the critical points (local maxima/minima)
+
+**Example:** For f(x) = x³ - 3x² + 2
+- f'(x) = 3x² - 6x
+- Set 3x² - 6x = 0: 3x(x - 2) = 0
+- Critical points: x = 0 and x = 2`;
+    } else if (prompt.includes("Find the asymptotes")) {
+        return `**How to solve:**
+1. **Vertical asymptotes:** Set denominator = 0
+2. **Horizontal asymptotes:** Compare degrees of numerator and denominator
+   - If degree of numerator < degree of denominator: y = 0
+   - If degrees are equal: y = (leading coefficient of numerator)/(leading coefficient of denominator)
+   - If degree of numerator > degree of denominator: no horizontal asymptote
+
+**Example:** For f(x) = (2x + 1)/(x² - 4)
+- Vertical: x² - 4 = 0 → x = ±2
+- Horizontal: degree of numerator (1) < degree of denominator (2) → y = 0`;
+    } else if (prompt.includes("function composition")) {
+        return `**How to solve:**
+1. For f(g(x)): substitute the entire g(x) function into f
+2. Replace every x in f with the g(x) expression
+3. Simplify
+
+**Example:** For f(x) = 3x + 2, g(x) = -x + 4, find f(g(x))
+- f(g(x)) = f(-x + 4)
+- = 3(-x + 4) + 2
+- = -3x + 12 + 2
+- = -3x + 14`;
+    }
+    
+    return null;
+}
+
 // Reveals the answer only when the tagged user replies directly to their posted challenge
 discordClient.on("messageCreate", async (message) => {
     const challengeMessageId = message.reference?.messageId;
@@ -1159,17 +1257,24 @@ discordClient.on("messageCreate", async (message) => {
 
         activeMathChallenges.delete(challengeMessageId);
 
+        const userAnswer = message.content.trim().toLowerCase();
+        const correctAnswer = mathChallenge.answer.toLowerCase();
+        const isCorrect = userAnswer === correctAnswer;
+
         let response = `The answer was **${mathChallenge.answer}**!`;
         response += `\n\n**Problem:**\n\`\`\`\n${mathProblem.problem}\n\`\`\``;
         response += `\n**Your answer:** ${message.content}`;
         
-        const userAnswer = message.content.trim().toLowerCase();
-        const correctAnswer = mathChallenge.answer.toLowerCase();
-        
-        if (userAnswer === correctAnswer) {
+        if (isCorrect) {
             response += `\n✅ **Correct!**`;
         } else {
-            response += `\n❌ **Incorrect.** The correct answer was: ${mathChallenge.answer}`;
+            response += `\n❌ **Incorrect.**`;
+            
+            // Add explanation and worked solution based on problem type
+            const explanation = getExplanation(mathProblem.prompt, mathProblem.problem, mathChallenge.answer);
+            if (explanation) {
+                response += `\n\n${explanation}`;
+            }
         }
 
         await message.reply(response);
@@ -1869,7 +1974,7 @@ discordClient.on("interactionCreate", async (interaction) => {
     }
 
     if (interaction.commandName === "spanish-quiz") {
-        await interaction.deferReply();
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         await postSpanishQuiz(interaction.channel);
         await interaction.editReply({ content: "Spanish quiz question posted!" });
         return;
