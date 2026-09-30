@@ -200,6 +200,13 @@ const atpAgent = new AtpAgent({
 // Posted math challenges awaiting a reply: message ID -> { answer, userId }
 const activeMathChallenges = new Map();
 
+// Storage for math problem history: tracks all problems posted during this session
+// Format: { timestamp, messageId, problem, answer, prompt }
+const mathProblemHistory = [];
+
+// Map of message IDs to their problem records for quick lookup
+const problemsByMessageId = new Map();
+
 // Scoped to COMMAND_GUILD_ID (guild commands update instantly, unlike global ones)
 const guildSlashCommands = [
     new SlashCommandBuilder()
@@ -284,6 +291,9 @@ const guildSlashCommands = [
                 .setDescription("Custom haunting message (optional, random if not provided)")
                 .setRequired(false),
         ),
+    new SlashCommandBuilder()
+        .setName("math-history")
+        .setDescription("View all math problems posted during this session."),
 ].map((command) => command.toJSON());
 
 const rest = new REST({ version: "10" }).setToken(DISCORD_BOT_TOKEN);
@@ -915,6 +925,18 @@ async function postMathChallenge(channel, targetUserId = MATH_QUIZ_USER_ID) {
             `${mention}${prompt}\n\`\`\`\n${equation}\n\`\`\``,
         );
         activeMathChallenges.set(message.id, { answer, userId: targetUserId });
+        
+        // Store in problem history
+        const problemRecord = {
+            timestamp: new Date().toISOString(),
+            messageId: message.id,
+            problem: equation,
+            answer: answer,
+            prompt: prompt,
+        };
+        mathProblemHistory.push(problemRecord);
+        problemsByMessageId.set(message.id, problemRecord);
+        
         console.log(`Math challenge posted (${answer})`);
     } catch (error) {
         console.error("Error posting math challenge:", error);
@@ -1025,12 +1047,33 @@ discordClient.on("messageCreate", async (message) => {
     const challengeMessageId = message.reference?.messageId;
     if (!challengeMessageId) return;
 
+    // Check if this is a reply to a math challenge (either active or from history)
     const challenge = activeMathChallenges.get(challengeMessageId);
-    if (!challenge) return;
+    const problemRecord = problemsByMessageId.get(challengeMessageId);
+    
+    if (!challenge || !problemRecord) return;
     if (challenge.userId && message.author.id !== challenge.userId) return; // Untagged challenges are open to anyone
 
+    // Remove from active challenges if it's still there
     activeMathChallenges.delete(challengeMessageId);
-    await message.reply(`The answer was ${challenge.answer}!`);
+
+    // Build a detailed response
+    let response = `The answer was **${challenge.answer}**!`;
+    
+    response += `\n\n**Problem:**\n\`\`\`\n${problemRecord.problem}\n\`\`\``;
+    response += `\n**Your answer:** ${message.content}`;
+    
+    // Check if the user's answer matches (simple string comparison)
+    const userAnswer = message.content.trim().toLowerCase();
+    const correctAnswer = challenge.answer.toLowerCase();
+    
+    if (userAnswer === correctAnswer) {
+        response += `\n✅ **Correct!**`;
+    } else {
+        response += `\n❌ **Incorrect.** The correct answer was: ${challenge.answer}`;
+    }
+
+    await message.reply(response);
 });
 
 /**
@@ -1658,6 +1701,41 @@ discordClient.on("interactionCreate", async (interaction) => {
                 flags: MessageFlags.Ephemeral,
             });
         }
+        return;
+    }
+
+    if (interaction.commandName === "math-history") {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+        if (mathProblemHistory.length === 0) {
+            await interaction.editReply({
+                content: "No math problems have been posted yet during this session.",
+            });
+            return;
+        }
+
+        // Build a formatted list of problems
+        let historyText = `**Math Problem History** (${mathProblemHistory.length} total)\n\n`;
+        
+        // Show the last 10 problems to avoid message length limits
+        const recentProblems = mathProblemHistory.slice(-10);
+        for (let i = 0; i < recentProblems.length; i++) {
+            const problem = recentProblems[i];
+            const index = mathProblemHistory.length - recentProblems.length + i + 1;
+            const time = new Date(problem.timestamp).toLocaleTimeString();
+            historyText += `**#${index}** (${time})\n`;
+            historyText += `${problem.prompt}\n`;
+            historyText += `\`\`\`\n${problem.problem}\n\`\`\`\n`;
+            historyText += `**Answer:** ${problem.answer}\n\n`;
+        }
+
+        if (mathProblemHistory.length > 10) {
+            historyText += `*Showing last 10 of ${mathProblemHistory.length} problems*`;
+        }
+
+        await interaction.editReply({
+            content: historyText,
+        });
         return;
     }
 
