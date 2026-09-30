@@ -18,6 +18,16 @@ import path from "path";
 import { fileURLToPath } from "url";
 import "dotenv/config"; // Loads variables from .env into process.env
 
+// Load Spanish quiz questions
+let spanishQuestions = [];
+try {
+    const spanishPath = path.join(__dirname, "spanish.json");
+    spanishQuestions = JSON.parse(fs.readFileSync(spanishPath, "utf8"));
+    console.log(`Loaded ${spanishQuestions.length} Spanish verb questions`);
+} catch (error) {
+    console.error("Failed to load Spanish quiz questions:", error);
+}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ==================== CONFIGURATION ====================
@@ -341,10 +351,10 @@ discordClient.once("clientReady", async () => {
 });
 
 /**
- * Generates a random math question: complex polynomial, quadratic factoring, number series, or function analysis.
+ * Generates a random question: math (polynomial, factoring, series, functions) or Spanish verb conjugation.
  */
 function generateAlgebraEquation() {
-    const questionType = randomInt(0, 3);
+    const questionType = randomInt(0, 4);
     switch (questionType) {
         case 0:
             return generateComplexPolynomial();
@@ -354,6 +364,8 @@ function generateAlgebraEquation() {
             return generateNumberSeries();
         case 3:
             return generateFunctionAnalysis();
+        case 4:
+            return generateSpanishVerbQuestion();
         default:
             return generateComplexPolynomial();
     }
@@ -892,6 +904,39 @@ function generateCompositionProblem() {
         equation: func,
         answer: answer,
         prompt: "Solve the function composition:",
+    };
+}
+
+/**
+ * Generates a Spanish verb conjugation question from the loaded quiz.
+ */
+function generateSpanishVerbQuestion() {
+    if (spanishQuestions.length === 0) {
+        // Fallback if Spanish questions didn't load
+        return {
+            equation: "Spanish quiz not loaded",
+            answer: "Error",
+            prompt: "Error:",
+        };
+    }
+
+    // Pick a random question from the Spanish quiz
+    const quizQuestion = spanishQuestions[randomInt(0, spanishQuestions.length - 1)];
+    
+    // Format the question with options
+    const optionsText = quizQuestion.options
+        .map((opt, idx) => `${String.fromCharCode(65 + idx)}) ${opt}`)
+        .join(" | ");
+    
+    const equation = `${quizQuestion.question}\n${optionsText}`;
+    
+    // The correct answer is the first option (index 0)
+    const correctAnswer = quizQuestion.options[0];
+
+    return {
+        equation,
+        answer: correctAnswer,
+        prompt: "Spanish Verb Conjugation - Choose the correct answer:",
     };
 }
 
