@@ -1155,6 +1155,57 @@ async function scheduleAutoHaunt() {
 }
 
 /**
+ * Extracts the core answer from user input by removing punctuation and extra whitespace.
+ * Handles cases like "x = 3?", "hablo!", "a) hablo", "i think x = 3", etc.
+ */
+function extractCoreAnswer(userInput) {
+    // Remove common punctuation and extra whitespace
+    let cleaned = userInput
+        .trim()
+        .toLowerCase()
+        // Remove trailing punctuation (?, !, ., ,)
+        .replace(/[?!.,;:]+$/, "")
+        // Remove leading punctuation like "a) " or "A) "
+        .replace(/^[a-d]\)\s*/, "")
+        // Remove extra whitespace
+        .trim();
+    
+    return cleaned;
+}
+
+/**
+ * Checks if a correct answer appears anywhere in the user's message.
+ * Useful for when users add extra text like "i think x = 3" or "the answer is hablo"
+ */
+function findAnswerInText(userInput, correctAnswer) {
+    const userLower = userInput.toLowerCase();
+    const correctLower = correctAnswer.toLowerCase();
+    
+    // Direct match (after cleaning)
+    const cleaned = extractCoreAnswer(userInput);
+    if (cleaned === correctLower) {
+        return true;
+    }
+    
+    // Check if the correct answer appears as a substring
+    if (userLower.includes(correctLower)) {
+        return true;
+    }
+    
+    // For math answers like "x = 3", also check for just the number/variable part
+    // Extract just the answer part after "=" or common separators
+    const answerMatch = userInput.match(/(?:^|[=:])\s*([^?!.,;:]+?)(?:[?!.,;:]|$)/i);
+    if (answerMatch) {
+        const extracted = answerMatch[1].trim().toLowerCase();
+        if (extracted === correctLower) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+/**
  * Generates an explanation and worked solution based on the problem type.
  * Uses the actual problem the user failed on as the worked example.
  */
@@ -1251,6 +1302,9 @@ discordClient.on("messageCreate", async (message) => {
             // Only respond if the message looks like a challenge (contains common challenge keywords)
             if (referencedMessage && (referencedMessage.author.id === message.client.user.id)) {
                 const messageContent = referencedMessage.content.toLowerCase();
+                const embeds = referencedMessage.embeds;
+                
+                // Check for math/Spanish challenge keywords in content or embeds
                 const isLikelyChallenge = 
                     messageContent.includes("find all integer roots") ||
                     messageContent.includes("factor the quadratic") ||
@@ -1260,7 +1314,13 @@ discordClient.on("messageCreate", async (message) => {
                     messageContent.includes("find the critical points") ||
                     messageContent.includes("find the asymptotes") ||
                     messageContent.includes("function composition") ||
-                    messageContent.includes("spanish verb conjugation");
+                    messageContent.includes("spanish verb conjugation") ||
+                    // Also check for code blocks (math challenges use triple backticks)
+                    (messageContent.includes("```") && (
+                        messageContent.includes("x^") || 
+                        messageContent.includes("solve") ||
+                        messageContent.includes("find")
+                    ));
                 
                 if (isLikelyChallenge) {
                     await message.reply("nyaa... oop, i dozed off. ask another question.");
@@ -1278,9 +1338,8 @@ discordClient.on("messageCreate", async (message) => {
 
         activeMathChallenges.delete(challengeMessageId);
 
-        const userAnswer = message.content.trim().toLowerCase();
         const correctAnswer = mathChallenge.answer.toLowerCase();
-        const isCorrect = userAnswer === correctAnswer;
+        const isCorrect = findAnswerInText(message.content, correctAnswer);
 
         let response = `The answer was **${mathChallenge.answer}**!`;
         response += `\n\n**Problem:**\n\`\`\`\n${mathProblem.problem}\n\`\`\``;
@@ -1313,15 +1372,15 @@ discordClient.on("messageCreate", async (message) => {
         response += `\n${optionsText}`;
         response += `\n**Your answer:** ${message.content}`;
         
-        const userAnswer = message.content.trim().toLowerCase();
         const correctAnswer = spanishChallenge.answer.toLowerCase();
         
         // Check if answer is correct (either full text or letter choice)
-        let isCorrect = userAnswer === correctAnswer;
+        let isCorrect = findAnswerInText(message.content, correctAnswer);
         
         // Also check if user answered with a letter (A, B, C, D)
         if (!isCorrect) {
-            const letterMatch = userAnswer.match(/[a-d]/);
+            const userLower = message.content.toLowerCase();
+            const letterMatch = userLower.match(/[a-d]/);
             if (letterMatch) {
                 const letterIndex = letterMatch[0].charCodeAt(0) - 97; // Convert a/b/c/d to 0/1/2/3
                 const answerByLetter = spanishQuestion.options[letterIndex]?.toLowerCase();
