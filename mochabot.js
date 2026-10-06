@@ -236,11 +236,37 @@ const guildSlashCommands = [
         ),
     new SlashCommandBuilder()
         .setName("toonie-math-time")
-        .setDescription("Posts a random algebra equation for Toonie to solve."),
+        .setDescription("Posts a random algebra equation for Toonie to solve.")
+        .addStringOption((option) =>
+            option
+                .setName("type")
+                .setDescription("Type of question (leave blank for random)")
+                .setRequired(false)
+                .addChoices(
+                    { name: "Random", value: "random" },
+                    { name: "Complex Polynomials", value: "polynomial" },
+                    { name: "Factoring Quadratics", value: "factoring" },
+                    { name: "Number Series", value: "series" },
+                    { name: "Function Analysis", value: "function" }
+                ),
+        ),
     new SlashCommandBuilder()
         .setName("math-time-open")
         .setDescription(
             "Posts a random algebra equation open for anyone to solve.",
+        )
+        .addStringOption((option) =>
+            option
+                .setName("type")
+                .setDescription("Type of question (leave blank for random)")
+                .setRequired(false)
+                .addChoices(
+                    { name: "Random", value: "random" },
+                    { name: "Complex Polynomials", value: "polynomial" },
+                    { name: "Factoring Quadratics", value: "factoring" },
+                    { name: "Number Series", value: "series" },
+                    { name: "Function Analysis", value: "function" }
+                ),
         ),
     new SlashCommandBuilder()
         .setName("say")
@@ -369,8 +395,26 @@ discordClient.once("clientReady", async () => {
 /**
  * Generates a random math question: polynomial, factoring, series, or functions.
  */
-function generateAlgebraEquation() {
-    const questionType = randomInt(0, 3);
+/**
+ * Generates a math question of the specified type, or random if type is not specified.
+ * @param {string} type - Question type: "polynomial", "factoring", "series", "function", or "random"
+ */
+function generateAlgebraEquation(type = "random") {
+    let questionType;
+    
+    if (type === "random") {
+        questionType = randomInt(0, 3);
+    } else {
+        // Map type names to indices
+        const typeMap = {
+            "polynomial": 0,
+            "factoring": 1,
+            "series": 2,
+            "function": 3
+        };
+        questionType = typeMap[type] ?? randomInt(0, 3);
+    }
+    
     switch (questionType) {
         case 0:
             return generateComplexPolynomial();
@@ -967,18 +1011,19 @@ function randomNonZeroInt(min, max) {
 }
 
 /**
- * Posts a random algebra equation to the given channel. If targetUserId is set, that user
+ * Posts an algebra equation to the given channel. If targetUserId is set, that user
  * is tagged and is the only one who can reveal the answer by replying; otherwise the
  * challenge is untagged and open for anyone to answer.
+ * @param {string} type - Question type: "polynomial", "factoring", "series", "function", or "random"
  */
-async function postMathChallenge(channel, targetUserId = MATH_QUIZ_USER_ID) {
+async function postMathChallenge(channel, targetUserId = MATH_QUIZ_USER_ID, type = "random") {
     try {
         if (!channel) {
             console.error("Math quiz channel not found.");
             return;
         }
 
-        const { equation, answer, prompt } = generateAlgebraEquation();
+        const { equation, answer, prompt } = generateAlgebraEquation(type);
         const mention = targetUserId ? `<@${targetUserId}> ` : "";
         const message = await channel.send(
             `${mention}${prompt}\n\`\`\`\n${equation}\n\`\`\``,
@@ -1830,14 +1875,16 @@ discordClient.on("interactionCreate", async (interaction) => {
 
     if (interaction.commandName === "toonie-math-time") {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-        await postMathChallenge(interaction.channel);
+        const questionType = interaction.options.getString("type") || "random";
+        await postMathChallenge(interaction.channel, MATH_QUIZ_USER_ID, questionType);
         await interaction.editReply({ content: "Math challenge posted!" });
         return;
     }
 
     if (interaction.commandName === "math-time-open") {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-        await postMathChallenge(interaction.channel, null);
+        const questionType = interaction.options.getString("type") || "random";
+        await postMathChallenge(interaction.channel, null, questionType);
         await interaction.editReply({ content: "Math challenge posted!" });
         return;
     }
