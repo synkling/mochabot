@@ -1532,10 +1532,11 @@ async function postToDiscord(channel, post) {
     // Turns BlueSky's link/mention/tag facets into markdown links so they're clickable in Discord
     const displayText = applyRichTextFacets(rawText, record.facets);
 
+    const postUrl = `${profileUrl}/post/${postSlug}`;
     const embed = new EmbedBuilder()
         .setDescription(displayText)
         .setColor(0x0085ff)
-        .setURL(`${profileUrl}/post/${postSlug}`)
+        .setURL(postUrl)
         .setAuthor({
             name: `${author.displayName || author.handle} (@${author.handle})`,
             iconURL: author.avatar,
@@ -1550,6 +1551,13 @@ async function postToDiscord(channel, post) {
     if (imageUrl) {
         embed.setImage(imageUrl);
     }
+    
+    // Add a clickable link field to ensure links are always accessible
+    embed.addFields({
+        name: "View on BlueSky",
+        value: `[Open Post](${postUrl})`,
+        inline: true
+    });
 
     const messagePayload = { embeds: [embed] };
     if (rolesToPing.length > 0) {
@@ -1653,7 +1661,8 @@ function applyRichTextFacets(text, facets) {
         const feature = facet.features?.[0];
 
         if (feature?.$type === "app.bsky.richtext.facet#link") {
-            result += `[${segment}](${feature.uri})`;
+            // Make links more visible with markdown formatting
+            result += `[🔗 ${segment}](${feature.uri})`;
         } else if (feature?.$type === "app.bsky.richtext.facet#mention") {
             result += `[${segment}](https://bsky.app/profile/${feature.did})`;
         } else if (feature?.$type === "app.bsky.richtext.facet#tag") {
