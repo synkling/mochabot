@@ -1531,16 +1531,6 @@ async function postToDiscord(channel, post) {
 
     // Turns BlueSky's link/mention/tag facets into markdown links so they're clickable in Discord
     const displayText = applyRichTextFacets(rawText, record.facets);
-    
-    // Debug logging for CheapAssGamer posts
-    if (author.handle === "cheapassgamer.com") {
-        console.log(`\n=== CheapAssGamer Post Debug ===`);
-        console.log(`Raw text:`, rawText);
-        console.log(`Facets:`, JSON.stringify(record.facets, null, 2));
-        console.log(`Display text:`, displayText);
-        console.log(`Post embed type:`, post.embed?.$type);
-        console.log(`================================\n`);
-    }
 
     const postUrl = `${profileUrl}/post/${postSlug}`;
     const embed = new EmbedBuilder()
@@ -1664,9 +1654,8 @@ function applyRichTextFacets(text, facets) {
         const feature = facet.features?.[0];
 
         if (feature?.$type === "app.bsky.richtext.facet#link") {
-            // Make links more visible with markdown formatting
-            // Use Discord's markdown link syntax which works better in embeds
-            result += `[${segment}](${feature.uri})`;
+            // For embeds, use angle brackets which Discord renders as clickable links
+            result += `<${feature.uri}>`;
         } else if (feature?.$type === "app.bsky.richtext.facet#mention") {
             result += `[${segment}](https://bsky.app/profile/${feature.did})`;
         } else if (feature?.$type === "app.bsky.richtext.facet#tag") {
