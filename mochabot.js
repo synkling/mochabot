@@ -1547,9 +1547,12 @@ async function postToDiscord(channel, post) {
             iconURL: "https://web-cdn.bsky.app/static/favicon.png",
         });
 
-    const imageUrl = extractEmbedImageUrl(post.embed);
-    if (imageUrl) {
-        embed.setImage(imageUrl);
+    // Extract all images from the post
+    const imageUrls = extractAllEmbedImageUrls(post.embed);
+    
+    // Set the first image on the main embed
+    if (imageUrls.length > 0) {
+        embed.setImage(imageUrls[0]);
     }
 
     const messagePayload = { embeds: [embed] };
@@ -1573,13 +1576,44 @@ async function postToDiscord(channel, post) {
 
     await channel.send(messagePayload);
 
+    // Post additional images as separate messages if there are more than one
+    if (imageUrls.length > 1) {
+        for (let i = 1; i < imageUrls.length; i++) {
+            const additionalEmbed = new EmbedBuilder()
+                .setImage(imageUrls[i])
+                .setColor(0x0085ff);
+            await channel.send({ embeds: [additionalEmbed] });
+        }
+    }
+
     // Post video separately so Discord auto-embeds it
     const videoUrl = extractEmbedVideoUrl(post.embed);
     if (videoUrl) {
         console.log(`Posting video: ${videoUrl}`);
         await channel.send(videoUrl);
-    } else if (post.embed) {
-        console.log(`Post has embed but no video extracted. Embed type: ${post.embed.$type}`);
+    }
+}
+
+/**
+ * Extracts all image URLs from a post's embed view.
+ * Handles plain image posts, link cards, and quote posts that also attach media.
+ * Returns an array of image URLs.
+ */
+function extractAllEmbedImageUrls(embed) {
+    if (!embed) return [];
+
+    switch (embed.$type) {
+        case "app.bsky.embed.images#view":
+            // Return all images from the post
+            return embed.images?.map(img => img.fullsize).filter(Boolean) ?? [];
+        case "app.bsky.embed.external#view":
+            // Link cards have a thumbnail
+            return embed.external?.thumb ? [embed.external.thumb] : [];
+        case "app.bsky.embed.recordWithMedia#view":
+            // Recursively extract from the media
+            return extractAllEmbedImageUrls(embed.media);
+        default:
+            return [];
     }
 }
 
