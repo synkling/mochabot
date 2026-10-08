@@ -1555,7 +1555,20 @@ async function postToDiscord(channel, post) {
         embed.setImage(imageUrls[0]);
     }
 
-    const messagePayload = { embeds: [embed] };
+    // Create embeds array starting with the main embed
+    const embeds = [embed];
+    
+    // Add additional images as separate embeds in the same message
+    if (imageUrls.length > 1) {
+        for (let i = 1; i < imageUrls.length; i++) {
+            const additionalEmbed = new EmbedBuilder()
+                .setImage(imageUrls[i])
+                .setColor(0x0085ff);
+            embeds.push(additionalEmbed);
+        }
+    }
+
+    const messagePayload = { embeds };
     if (rolesToPing.length > 0) {
         // Get the Zelda role ID from REACTION_ROLES if it exists
         const zeldaRole = REACTION_ROLES.find(
@@ -1575,16 +1588,6 @@ async function postToDiscord(channel, post) {
     }
 
     await channel.send(messagePayload);
-
-    // Post additional images as separate messages if there are more than one
-    if (imageUrls.length > 1) {
-        for (let i = 1; i < imageUrls.length; i++) {
-            const additionalEmbed = new EmbedBuilder()
-                .setImage(imageUrls[i])
-                .setColor(0x0085ff);
-            await channel.send({ embeds: [additionalEmbed] });
-        }
-    }
 
     // Post video separately so Discord auto-embeds it
     const videoUrl = extractEmbedVideoUrl(post.embed);
