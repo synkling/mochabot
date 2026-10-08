@@ -1550,7 +1550,7 @@ async function postToDiscord(channel, post) {
         .setAuthor({
             name: `${author.displayName || author.handle} (@${author.handle})`,
             iconURL: author.avatar,
-            url: profileUrl,
+            url: postUrl, // Link author name to the post
         })
         .setFooter({
             text: "Posted on BlueSky",
@@ -1561,13 +1561,6 @@ async function postToDiscord(channel, post) {
     if (imageUrl) {
         embed.setImage(imageUrl);
     }
-    
-    // Add a clickable link field to ensure links are always accessible
-    embed.addFields({
-        name: "View on BlueSky",
-        value: `[Open Post](${postUrl})`,
-        inline: true
-    });
 
     const messagePayload = { embeds: [embed] };
     if (rolesToPing.length > 0) {
