@@ -37,7 +37,6 @@ const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 const DESTINATION_CHANNEL_ID = process.env.DESTINATION_CHANNEL_ID; // Where BlueSky cross-posts are sent
 const CHEAPASSGAMER_THREAD_ID = process.env.CHEAPASSGAMER_THREAD_ID; // Thread for cheapassgamer.com posts
-const FATKIDDEALS_THREAD_ID = process.env.FATKIDDEALS_THREAD_ID; // Thread for fatkiddeals.com posts
 
 // BlueSky login used to read the feed (needs an app password, not the main account password)
 const BLUESKY_HANDLE = process.env.BLUESKY_HANDLE;
@@ -47,7 +46,6 @@ const BLUESKY_APP_PASSWORD = process.env.BLUESKY_APP_PASSWORD;
 const TARGET_BLUESKY_USERS = [
     process.env.TARGET_BLUESKY_USER,
     "cheapassgamer.com",
-    "fatkiddeals.com",
 ];
 
 // How often to poll BlueSky for new posts, in milliseconds
@@ -1493,12 +1491,8 @@ async function checkBlueSkyPosts() {
 
                 // Route dedicated accounts to their threads, others to the main channel
                 let targetChannel = channel;
-                const threadId = user === "cheapassgamer.com"
-                    ? CHEAPASSGAMER_THREAD_ID
-                    : user === "fatkiddeals.com"
-                        ? FATKIDDEALS_THREAD_ID
-                        : null;
-                if (user === "cheapassgamer.com" || user === "fatkiddeals.com") {
+                const threadId = user === "cheapassgamer.com" ? CHEAPASSGAMER_THREAD_ID : null;
+                if (user === "cheapassgamer.com") {
                     if (!threadId) {
                         console.error(`No Discord thread configured for ${user}.`);
                         continue;
