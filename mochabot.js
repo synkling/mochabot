@@ -1489,7 +1489,6 @@ async function checkBlueSkyPosts() {
 
                 if (newPosts.length === 0) continue;
 
-                lastProcessedUriMap[user] = feed[0].post.uri;
                 newPosts.reverse(); // Send oldest-to-newest so Discord message order matches posting order
 
                 // Route dedicated accounts to their threads, others to the main channel
@@ -1499,17 +1498,28 @@ async function checkBlueSkyPosts() {
                     : user === "fatkiddeals.com"
                         ? FATKIDDEALS_THREAD_ID
                         : null;
-                if (threadId) {
+                if (user === "cheapassgamer.com" || user === "fatkiddeals.com") {
+                    if (!threadId) {
+                        console.error(`No Discord thread configured for ${user}.`);
+                        continue;
+                    }
                     try {
                         targetChannel = await discordClient.channels.fetch(threadId);
+                        if (!targetChannel?.isThread()) {
+                            throw new Error(`Configured channel ${threadId} is not a thread.`);
+                        }
+                        if (targetChannel.archived) {
+                            await targetChannel.setArchived(false);
+                        }
                     } catch (threadError) {
                         console.error(`Could not fetch ${user} thread (${threadId}):`, threadError);
-                        targetChannel = channel; // Fallback to main channel
+                        continue;
                     }
                 }
 
                 for (const feedView of newPosts) {
                     await postToDiscord(targetChannel, feedView.post);
+                    lastProcessedUriMap[user] = feedView.post.uri;
                 }
             } catch (userError) {
                 console.error(`Error checking BlueSky feed for ${user}:`, userError);
